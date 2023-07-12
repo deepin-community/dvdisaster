@@ -1,0 +1,39 @@
+From: TANIGUCHI Takaki <takaki@debian.org>
+Date: Mon, 14 Sep 2020 10:41:29 +0900
+Subject: Fix for compilation error under gcc 10
+
+Author: Stéphane Lesimple <speed47_debian@speed47.net>
+---
+ dvdisaster.c | 5 +++++
+ dvdisaster.h | 8 ++++----
+ 2 files changed, 9 insertions(+), 4 deletions(-)
+
+--- a/dvdisaster.c
++++ b/dvdisaster.c
+@@ -22,6 +22,11 @@
+ 
+ #include "dvdisaster.h"
+ 
++struct _RawBuffer *rawbuffer_forward;
++struct _DefectiveSectorHeader *dsh_forward;
++struct _DeviceHandle *dh_forward;
++struct _Image *dh_image;
++
+ /*
+  * The all-famous main() loop 
+  */
+--- a/dvdisaster.h
++++ b/dvdisaster.h
+@@ -426,9 +426,9 @@
+  *** forward declarations
+  ***/
+ 
+-struct _RawBuffer *rawbuffer_forward;
+-struct _DefectiveSectorHeader *dsh_forward;
+-struct _DeviceHandle *dh_forward;
++extern struct _RawBuffer *rawbuffer_forward;
++extern struct _DefectiveSectorHeader *dsh_forward;
++extern struct _DeviceHandle *dh_forward;
+ 
+ /***
+  *** bitmap.c
