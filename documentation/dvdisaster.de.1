@@ -1,0 +1,427 @@
+.TH DVDISASTER 1 "2015-12-16" "0.79.5" "Schutz f\[:u]r optische Datentr\[:a]ger"
+
+.SH NAME
+DVDISASTER \- Schutz f\[:u]r optische Datentr\[:a]ger gegen Datenverlust durch Alterung
+oder Kratzer
+
+.SH SYNTAX
+.B dvdisaster
+.RB [\| \-r \||\| \-c \||\| \-f \||\| \-s \||\| \-t[q] \||\| \-u \|]
+.RB [\| \-d
+.IR device \|]
+.RB [\| \-p
+.IR prefix \|]
+.RB [\| \-i
+.IR image \|]
+.RB [\| \-e
+.IR eccfile \|]
+.RB [\| \-o
+.IR file|image \|]
+.RB [\| \-a
+.IR method-list \|]
+.RB [\| \-j
+.IR n \|]
+.RB [\| -n
+.IR n% \|]
+.RB [\| -m
+.IR n \|]
+.RB [\| -v \|]
+.RB [\| -x
+.IR n \|]
+.RB [\| \-\-adaptive-read \|]
+.RB [\| \-\-auto-suffix \|]
+.RB [\| \-\-cache-size
+.IR n \|]
+.RB [\| \-\-dao \|]
+.RB [\| \-\-defective-dump \|
+.IR d \|]
+.RB [\| \-\-driver \|
+.IR d \|]
+.RB [\| \-\-eject \|]
+.RB [\| \-\-encoding-algorithm
+.IR n \|]
+.RB [\| \-\-encoding-io-strategy
+.IR n \|]
+.RB [\| \-\-fill-unreadable
+.IR n \|]
+.RB [\| \-\-ignore-fatal-sense \|]
+.RB [\| \-\-ignore-iso-size \|]
+.RB [\| \-\-internal-rereads
+.IR n \|]
+.RB [\| \-\-medium-info \|]
+.RB [\| \-\-old-ds-marker \|]
+.RB [\| \-\-prefetch-sectors
+.IR n \|]
+.RB [\| \-\-raw-mode
+.IR n \|]
+.RB [\| \-\-read-attempts
+.IR n-m \|]
+.RB [\| \-\-read-medium
+.IR n \|]
+.RB [\| \-\-read-raw \|]
+.RB [\| \-\-resource-file
+.IR n \|]
+.RB [\| \-\-speed-warning
+.IR n \|]
+.RB [\| \-\-spinup\-delay
+.IR n \|]
+
+.SH BESCHREIBUNG
+.B DVDISASTER
+erzeugt einen Sicherheitspuffer gegen Datenverluste, die auf optischen
+Datentr\[:a]gern durch Alterung oder Kratzer entstehen. Es erzeugt
+Fehlerkorrekturdaten, um bei nachfolgenden Datentr\[:a]ger-Problemen unlesbare
+Sektoren zu rekonstruieren.
+
+.SH TYPISCHE ANWENDUNGEN
+
+.TP
+\fBdvdisaster\fP \fB-d\fP \fI/dev/hdc\fP \fB-s\fP
+\[:U]berpr\[:u]ft den Datentr\[:a]ger in Laufwerk \fI/dev/hdc\fP auf Fehler.
+.TP
+\fBdvdisaster\fP \fB-d\fP \fI/dev/hdc\fP \fB-i\fP \fIabbild.iso\fP \fB-r\fP
+Erstellt ein Abbild vom Datentr\[:a]ger in Laufwerk \fI/dev/hdc\fP als Datei \fIabbild.iso\fP.
+.TP
+\fBdvdisaster\fP \fB-d\fP \fI/dev/hdc\fP \fB-i\fP \fImedium.iso\fP \fB--read-raw\fP \fB-r\fP
+Erstellt ein Abbild wie oben beschrieben. Die Sektoren werden anhand ihrer
+EDC- und L-EC-Rohdaten auf Unversehrtheit \[:u]berpr\[:u]ft. Dies ist nur f\[:u]r 
+CD-Datentr\[:a]ger m\[:o]glich; anderenfalls hat die \fB--read-raw\fP-Option
+keine Wirkung.
+.TP
+\fBdvdisaster\fP \fB-d\fP \fI/dev/hdc\fP \fB-i\fP \fImedium.iso\fP \fB--read-attempts\fP \fIn-m\fP \fB-r\fP
+Erstellt ein Abbild wie oben beschrieben. F\[:u]r besch\[:a]digte Sektoren werden
+mindestens \fIn\fP und h\[:o]chstens \fIm\fP Leseversuche unternommen. Die
+Lesbarkeit von besch\[:a]digten CD-Datentr\[:a]gern kann in Verbindung mit
+\fB--read-raw\fI besser werden.
+.TP
+\fBdvdisaster\fP \fB-d\fP \fI/dev/hdc\fP \fB-i\fP \fIabbild.iso\fP \fB-e\fP \fIkorr.ecc\fP \fB-r\fP \fB--adaptive-read\fP
+Verwendet die angepasste Lesestrategie, um ein Abbild vom 
+Datentr\[:a]ger in Laufwerk \fI/dev/hdc\fP als Datei \fIabbild.iso\fP
+zu erstellen. Der Lesevorgang wird automatisch beendet
+sobald gen\[:u]gend Daten eingelesen wurden, um das Abbild mit Hilfe der 
+Fehlerkorrektur-Datei \fIkorr.ecc\fP wiederherzustellen:
+.TP
+\fBdvdisaster\fP \fB-i\fP \fIabbild.iso\fP \fB-e\fP \fIkorr.ecc\fP \fB-c\fP
+Erzeugt eine Fehlerkorrektur-Datei \fIkorr.ecc\fP f\[:u]r das Abbild \fIabbild.iso\fP.
+.TP
+\fBdvdisaster\fp \fB-i\fP \fIabbild.iso\fP \fB-m\fIRS02\fP \fB-n\fP \fI350000\fP \fB-c\fP
+Erweitert ein Abbild \fIabbild.iso\fP mit Fehlerkorrektur-Daten,
+wobei das Abbild auf nicht mehr als \fI350000\fP Sektoren vergr\[:o]ssert wird.
+Ohne Angabe von \fB-n\fP wird das Abbild auf die Gr\[:o]sse des 
+kleinstm\[:o]glichen Datentr\[:a]gers (CD, DVD, DVD9) erweitert.
+Beachten Sie das fehlende Leerzeichen zwischen \fB-m\fP und \fIRS02\fP.
+.TP
+\fBdvdisaster\fP \fB-i\fP \fIabbild.iso\fP \fB-e\fP \fIkorr.ecc\fP \fB-f\fP
+Wiederherstellung der Abbild-Datei \fIabbild.iso\fP 
+mit Hilfe der Fehlerkorrektur-Datei \fIkorr.ecc\fP.
+.TP
+\fBdvdisaster\fP \fB-i\fP \fIabbild.iso\fP \fB-e\fP \fIkorr.ecc\fP \fB-t\fP
+\[:U]berpr\[:u]ft den Inhalt des Abbilds \fIabbild.iso\fP 
+mit Hilfe der Fehlerkorrektur-Datei \fIkorr.ecc\fP auf Vollst\[:a]ndigkeit und Korrektheit.
+.TP
+\fBHINWEIS:\fP
+Geben Sie in den obigen Beispielen  die \fB-e korr.ecc\fP-Optionen nicht an, 
+wenn Sie mit erweiterten Abbildern arbeiten.
+
+.SH OPTIONEN
+Aktions-Auswahl (mindestens eine Aktion muss gew\[:a]hlt werden):
+.TP
+.B \-r, \-\-read
+Datentr\[:a]ger-Abbild auf Festplatte einlesen. \-rn-m liest einen Bereich von
+Sektoren, z.B. \-r100-200.
+.TP
+.B \-c, \-\-create
+Erzeugt Fehlerkorrektur-Daten f\[:u]r das Abbild.
+.TP
+.B \-f, \-\-fix
+Versucht das Abbild mit Hilfe der Fehlerkorrektur-Daten zu reparieren.
+.TP
+.B \-s, \-\-scan
+Untersucht den Datentr\[:a]ger auf Lesefehler.
+.TP
+.B \-t, \-\-test, \-tq, \-test=q
+Pr\[:u]ft die Struktur der .iso und .ecc \- Dateien.
+Bei Angabe der "q"-Option werden nur die Informationen ausgegeben,
+die ohne vollst\[:a]ndiges Lesen der Dateien ermittelt werden k\[:o]nnen.
+.TP
+.B \-u, \-\-unlink
+L\[:o]scht .iso - Dateien nach Beenden der vorherigen Aktionen.
+.PP
+
+Laufwerks- und Dateinamen:
+.TP
+.B \-d, \-\-device device
+Von diesem Laufwerk lesen (Standard: /dev/cdrom).
+.TP
+.B \-p, \-\-prefix prefix
+Anfang der .iso/.ecc - Dateien (Standard: medium.* ).
+.TP
+.B \-i, \-\-image imagefile
+Name der Abbild - Datei (Standard: medium.iso).
+.TP
+.B \-e, \-\-ecc eccfile
+Name der Fehlerkorrektur-Datei (Standard: medium.ecc).
+.TP
+.B \-o, \-\-ecc-target file|image
+Gibt an ob mit RS03 Fehlerkorrektur-Dateien oder erweiterte
+Abbilder erzeugt werden sollen (Standard: erweiterte Abbilder).
+.PP
+
+Feineinstellung (Beachten Sie die Hinweise in der Dokumentation!):
+.TP
+.B \-a, \-\-assume method1,method2,...
+Nimmt an da\[ss] das Abbild mit einer der angegebenen Methoden erweitert
+wurde. Dies bewirkt eine ersch\[:o]pfende Suche nach den Datenstrukturen
+der Methode und ist hilfreich, um in besch\[:a]digten Datentr\[:a]gern enthaltene
+Fehlerkorrektur-Daten wiederzufinden. Wenn das Abbild allerdings keine
+der angegebenen Fehlerkorrektur-Daten enth\[:a]lt, verschwendet diese Option
+eine gro\[ss]e Menge Rechenzeit und Ein-/Ausgabeoperationen.
+.RS
+M\[:o]gliche Werte sind RS02 und RS03.
+.RE
+.TP
+.B \-j, \-\-jump n
+\[:u]berspringe n Sektoren nach einem Lesefehler (Standard: 16).
+.TP
+.B \-n, \-\-redundancy n[unit]
+Redundanz der Fehlerkorrektur-Daten. Die zul\[:a]ssigen Werte sind vom
+verwendeten Kodierer abh\[:a]ngig:
+
+.RS
+RS01- und RS03-Fehlerkorrektur-Dateien:
+.RS
+\-n x\ \ erzeugt Fehlerkorrektur-Datei mit x Nullstellen.
+.RE
+.RS
+\-n x% erzeugt Fehlerkorrektur-Datei mit x Prozent Redundanz.
+.RE
+.RS
+\-n xm erzeugt Fehlerkorrektur-Datei mit ca. x MiB Gr\[:u]\[ss]e.
+.RE
+.RE
+
+.RS
+RS01-Fehlerkorrektur-Dateien unterst\[:u]tzen au\[ss]erdem:
+.RS
+\-n normal - optimierter Kodierer f\[:u]r 14.3% Redundanz/32 Nullstellen.
+.RE
+.RS
+\-n high\ \ \ - optimierter Kodierer f\[:u]r 33.5% Redundanz/64 Nullstellen.
+.RE
+.RE
+
+.RS
+RS02-Abbilder:
+.RS
+\-n CD\ \ \ erweitert Abbild auf CD-Gr\[:o]\[ss]e.
+.RE
+.RS
+\-n DVD\ \ erweitert Abbild auf DVD-Gr\[:o]\[ss]e.
+.RE
+.RS
+\-n DVD9 erweitert Abbild auf DVD9-Gr\[:o]\[ss]e.
+.RE
+.RS
+\-n BD\ \ \ erweitert Abbild auf BD-Gr\[:o]\[ss]e.
+.RE
+.RS
+\-n BD2\  erweitert Abbild auf zweilagige BD-Gr\[:o]\[ss]e.
+.RE
+.RS
+\-n x\ \ \ \ erweitert Abbild auf ca. x Sektoren L\[:a]nge.
+.RE
+.RS
+\-n x%\ \ \ erweitert Abbild mit ca. x% Redundanz. 
+.RE
+.RS
+\-n xr\ \ \ erweitert Abbild mit x Nullstellen Fehlerkorrektur-Daten.
+.RE
+.RE
+
+.RS
+RS03-Abbilder:
+.RS
+Einstellungen sind formatbedingt nicht m\[:o]glich.
+Es wird automatisch die n\[:a]chste passende Datentr\[:a]gergr\[:o]\[ss]e ausgew\[:a]hlt.
+.RE
+.RE
+
+.TP
+.B \-m, \-\-method n
+Fehlerkorrektur-Methoden anzeigen/ausw\[:a]hlen (Standard: RS01).
+.RS
+M\[:o]gliche Werte sind RS01 und RS02.
+.RE
+.TP
+.B \-v, \-\-verbose n%
+mehr erl\[:a]uternde Ausgaben
+.TP
+.B \-x, \-\-threads n
+Verwende n Kontrollf\[:a]den f\[:u]r den RS03-Kodierer/Dekodierer. Empfohlen
+sind 2 bzw. 4 Kontrollf\[:a]den f\[:u]r 2- bzw. 4-Kern-Prozessoren. Lassen Sie
+auf gr\[:o]\[ss]eren Systemen einen Kontrollfaden f\[:u]r Verwaltungszwecke frei,
+d.h. benutzen Sie 7 Kontrollf\[:a]den auf einem 8-Kern-System.
+.TP
+.B \-\-adaptive-read
+verwende optimierte Lesestrategie f\[:u]r defekte Datentr\[:a]ger.
+.TP
+.B \-\-auto-suffix
+automatisches Anf\[:u]gen der .iso- und .ecc-Dateiendungen.
+.TP
+.B \-\-cache-size n
+Zwischenspeicher in MiB bei .ecc-Datei-Erzeugung - (Standard: 32MiB).
+.TP
+.B \-\-dao
+unterstelle DAO; Abbild am Ende nicht k\[:u]rzen.
+.TP
+.B \-\-defective-dump d
+Gibt das Unterverzeichnis zum Sammeln von unvollst\[:a]ndigen
+Roh-Sektoren an.
+.TP
+.B \-\-driver d  (nur f\[:u]r Linux)
+W\[:a]hlt zwischen dem sg (SG_IO)-Treiber (voreingestellt) und dem
+\[:a]lteren cdrom (CDROM_SEND_PACKET)-Treiber zum Zugriff auf die Laufwerke aus.
+Beide Treiber sollten gleich gut funktionieren; der 
+cdrom-Treiber hat allerdings mit alten SCSI-Kontrollern Probleme.
+Bis einschlie\[ss]lich dvdisaster 0.72.x war der cdrom-Treiber allerdings die
+Voreinstellung; wenn sich jetzt etwas zum Schlechteren ver\[:a]ndert hat
+w\[:a]hlen Sie bitte wieder mit \-\-driver=cdrom den \[:a]lteren Treiber aus.
+.TP
+.B \-\-eject
+Datentr\[:a]ger nach erfolgreichem Lesen auswerfen.
+.TP
+.B \-\-encoding-algorithm [32bit|64bit|SSE2|AltiVec]
+Diese Einstellung beeinflu\[ss]t die Geschwindigkeit beim Erstellen von
+RS03-Fehlerkorrektur-Daten. dvdisaster kann entweder ein allgemeines
+Kodierungsverfahren mit 32bit- oder 64bit breiten Rechenschritten
+verwenden, die auf der Ganzzahl-Einheit des Prozessors ausgef\[:u]hrt
+werden, oder es kann Prozessor-spezifische Erweiterungen nutzen.
+.RS
+W\[:a]hlbare Erweiterungen sind SSE2 auf x86-basierten Prozessoren
+sowie AltiVec auf PowerPC-basierten Prozessoren. Diese Erweiterungen
+rechnen mit 128bit breiten Operationen und liefern typischerweise
+die h\[:o]chste Geschwindigkeit. Daher werden der SSE2- oder der 
+AltiVec-Kodierer automatisch ausgew\[:a]hlt sofern der Prozessor 
+dies unterst\[:u]tzt und nichts anderes mit dieser Option angegeben wird.
+
+.RE
+.TP
+.B \-\-encoding-io-strategy [readwrite|mmap]
+Diese Einstellung beeinflu\[ss]t das Lesen und Schreiben von Daten w\[:a]hrend der
+Erstellung von RS03-Fehlerkorrektur-Daten. Probieren Sie beide Einstellungen
+um zu sehen welche am besten mit Ihrer Hardware harmoniert.
+.RS
+Die "readwrite"-Einstellung aktiviert das eingebaute I/O-Steuerprogramm
+von dvdisaster, das mit Hilfe normaler Ein- und Ausgabeoperationen auf Dateiebene arbeitet.
+Dies hat den Vorteil da\[ss] dvdisaster genau steuern kann welche Daten zwischengespeichert und
+im Hintergrund geladen werden m\[:u]ssen; der Nachteil ist allerdings da\[ss] alle Daten einmal
+zwischen dem Betriebssystemkern und den Pufferspeichern von dvdisaster kopiert werden
+m\[:u]ssen. Typischerweise funktioniert diese Einstellung am besten mit langsamen Massenspeichern,
+die hohe Such- und Reaktionszeiten aufweisen, also z.B. mit allen Speichersystemen,
+die drehende Magnetscheiben enthalten.
+Die "mmap"-Einstellung verwendet die M\[:o]glichkeit des Betriebssystemkerns, Dateien direkt
+in Speicherbereiche einzublenden. Dies hat den Vorteil, da\[ss] kaum Daten kopiert werden
+m\[:u]ssen, aber ein Nachteil kann dadurch entstehen, da\[ss] der Betriebssystemkern eine
+ungeschickte Strategie zum Zwischenspeichern von Daten trifft, da er keine Informationen
+dar\[:u]ber hat, was dvdisaster mit den Daten als n\[:a]chstes tun wird. Diese Einstellung
+funktioniert am besten beim direkten Arbeiten mit Dateien im Arbeitsspeicher (z.B. unter
+/dev/shm in Linux) sowie mit schnellen Speichermedien mit geringen Suchzeiten wie SSDs.
+.RE
+.TP
+.B \-\-fill-unreadable n
+f\[:u]lle unlesbare Sektoren mit Byte n.
+.TP
+.B \-\-ignore-fatal-sense
+Lesen nach m\[:o]glicherweise schwerwiegenden Fehlern fortsetzen.
+.TP
+.B \-\-ignore-iso-size
+dvdisaster nutzt bevorzugt die Gr\[:o]\[ss]eninformationen aus dem
+ISO/UDF-Dateisystem gegen\[:u]ber einer Abfrage der Datentr\[:a]gergr\[:o]\[ss]e
+von dem Laufwerk, da viele Laufwerke unzuverl\[:a]ssige Informationen liefern.
+.RS
+In einigen seltenen F\[:a]llen stimmt die Information in den ISO/UDF-Dateisystemen 
+allerdings nicht. Einige Linux-Live-CDs haben dieses Problem. Wenn Sie ein 
+Abbild von diesen CDs lesen und seine MD5-Pr\[:u]fsumme nicht mit der ver\[:o]ffentlichten 
+Pr\[:u]fsumme \[:u]bereinstimmt, versuchen Sie das Abbild noch einmal zu lesen 
+nachdem Sie diese Einstellung aktiviert haben.
+.RE
+.RS
+Schalten Sie diese Funktion nicht grundlos ein da sehr wahrscheinlich 
+nicht optimale oder besch\[:a]digte ISO-Abbilder das Ergebnis sein werden, 
+insbesondere wenn Sie vorhaben Fehlerkorrektur-Daten zu dem Abbild zu erzeugen.
+.RE
+.TP
+.B \-\-internal-rereads n
+Leseversuche innerhalb des Laufwerks f\[:u]r besch\[:a]digte CD-Sektoren (Standard: \-1)
+.RS
+Laufwerke unternehmen normalerweise mehrere Versuche um einen besch\[:a]digten Sektor 
+zu lesen. Es ist typischerweise g\[:u]nstiger diesen Wert auf 0 oder 1 zu setzen
+und die Anzahl der Leseversuche \[:u]ber den Parameter \-\-read-attempts zu steuern.
+Viele Laufwerke ignorieren diese Einstellung ohnehin. Benutzen Sie den Wert \-1 um
+die Standardeinstellungen des Laufwerks zu verwenden.
+.RE
+.TP
+.B \-\-medium-info
+Gibt Informationen \[:u]ber den Datentr\[:a]ger im ausgew\[:a]hlten Laufwerk aus.
+.TP
+.B \-\-old-ds-marker
+Markiert fehlende Sektoren in einer Weise, die mit dvdisaster
+0.70 oder noch fr\[:u]heren Versionen kompatibel ist.
+.RS
+Das voreingestellte Markierungsverfahren ist ab dvdisaster
+0.72 die bessere Wahl. Allerdings k\[:o]nnen Sie mit diesem Verfahren
+markierte Abbilder nicht mit fr\[:u]heren dvdisaster-Versionen verwenden,
+da diese keine fehlenden Sektoren in den Abbildern erkennen w\[:u]rden.
+
+Bearbeiten Sie ein Abbild nicht mit wechselnden Einstellungen f\[:u]r
+diese Option.
+.RE
+.TP
+.B \-\-prefetch-sectors n
+n Sektoren f\[:u]r die RS03-(De)kodierung im Voraus laden (Standard: 32)
+.RS
+Ein Wert von n verbraucht ungef\[:a]hr n MiB Arbeitsspeicher.
+.RE
+.TP
+.B \-\-raw-mode n
+"Raw"\-Lese-Verfahren f\[:u]r besch\[:a]digte CD-Sektoren (default: 20)
+.RS
+Das empfohlene Verfahren ist 20, bei dem das Laufwerk die eingebaute Fehlerkorrektur
+so weit wie m\[:o]glich anwendet, bevor es einen besch\[:a]digten Sektor 
+zur\[:u]ckgibt. Einige Laufwerke k\[:o]nnen besch\[:a]digte Sektoren allerdings
+nur in der Betriebsart 21 lesen. Dabei wird die letzte Stufe der eingebauten
+Fehlerkorrektur nicht ausgef\[:u]hrt und der Sektor wird unkorrigiert
+zur\[:u]ckgegeben.
+.RE
+.TP
+.B \-\-read-attempts n-m
+versucht einen besch\[:a]digten Sektor n bis m-mal zu lesen.
+.TP
+.B \-\-read-medium n
+liest den gesamten Datentr\[:a]ger bis zu n-mal.
+.TP
+.B \-\-read-raw
+liest in der "raw"\-Betriebsart sofern m\[:o]glich.
+.TP
+.B \-\-resource-file n
+Gibt den Pfad zur Konfigurationsdatei an (Voreinstellung: $HOME/.dvdisaster)
+.TP
+.B \-\-speed-warning n
+warnt bei Geschwindigkeits\[:a]nderung um mehr als n Prozent.
+.TP
+.B \-\-spinup-delay n
+gibt dem Laufwerk n Sekunden Zeit zum Hochlaufen.
+.PP
+
+.SH SIEHE AUCH
+.B Dokumentation
+DVDISASTER ist in seinem eigenen Handbuch dokumentiert, welches in
+.IR %docdir%
+installiert ist.
+
+.SH AUTHOR
+DVDISASTER wurde von Carsten Gnoerlich <carsten@dvdisaster.com> geschrieben.
+.PP
+Diese Hilfeseite wurde von Daniel Baumann <daniel.baumann@panthera-systems.net>
+f\[:u]r das Debian Projekt geschrieben (kann aber auch von Anderen verwendet
+werden). Sie wird seit Version 0.70 von Carsten Gn\[:o]rlich gepflegt.
