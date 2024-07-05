@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -178,12 +180,14 @@ ssize_t LargeRead(LargeFile *lf, void *buf, size_t count)
  * Writing large files
  */
 
+#ifdef WITH_GUI_YES
 static void insert_buttons(GtkDialog *dialog)
 {  
   gtk_dialog_add_buttons(dialog, 
 			 GTK_STOCK_REDO , 1,
 			 GTK_STOCK_CANCEL, 0, NULL);
 } 
+#endif
 
 static ssize_t xwrite(int fdes, void *buf_base, size_t count)
 {  unsigned char *buf = (unsigned char*)buf_base;
@@ -206,6 +210,7 @@ static ssize_t xwrite(int fdes, void *buf_base, size_t count)
       return total;
    }
 
+#ifdef WITH_GUI_YES
    /* Give the user a chance to free more space in GUI mode.
       When running out of space, the last write() may complete
       with n<count but no error condition, so we try writing
@@ -219,10 +224,10 @@ static ssize_t xwrite(int fdes, void *buf_base, size_t count)
 
 	 if(errno != ENOSPC) return total;
 
-	 answer = ModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, insert_buttons,
-			      _("Error while writing the file:\n\n%s\n\n"
-				"You can redo this operation after freeing some space."),
-			      strerror(errno),n);
+	 answer = GuiModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, insert_buttons,
+				 _("Error while writing the file:\n\n%s\n\n"
+				   "You can redo this operation after freeing some space."),
+				 strerror(errno));
 
 	 if(!answer) return total; 
       }
@@ -233,7 +238,8 @@ static ssize_t xwrite(int fdes, void *buf_base, size_t count)
 	 buf   += n;
       }
    }
-
+#endif /* WITH_GUI_YES */
+   
    return total;
 }
 

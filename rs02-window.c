@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,10 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: only GUI code ***/
+
+#ifdef WITH_GUI_YES
 
 #include "dvdisaster.h"
 
@@ -40,8 +44,8 @@ static void update_geometry(RS02Widgets*);
 void ResetRS02EncWindow(Method *method)
 {  RS02Widgets *wl = (RS02Widgets*)method->widgetList;
 
-   SetProgress(wl->encPBar1, 0, 100);
-   SetProgress(wl->encPBar2, 0, 100);
+   GuiSetProgress(wl->encPBar1, 0, 100);
+   GuiSetProgress(wl->encPBar2, 0, 100);
 
    gtk_widget_hide(wl->encLabel2);
    gtk_widget_hide(wl->encPBar2);
@@ -52,13 +56,7 @@ void ResetRS02EncWindow(Method *method)
 
 void CreateRS02EncWindow(Method *method, GtkWidget *parent)
 {  GtkWidget *wid,*table,*pbar,*sep;
-   RS02Widgets *wl;
-
-   if(!method->widgetList)
-   {  wl = g_malloc0(sizeof(RS02Widgets));
-      method->widgetList = wl;
-   }
-   else wl = method->widgetList;
+   RS02Widgets *wl = method->widgetList;
 
    wl->encHeadline = gtk_label_new(NULL);
    gtk_misc_set_alignment(GTK_MISC(wl->encHeadline), 0.0, 0.0); 
@@ -75,8 +73,7 @@ void CreateRS02EncWindow(Method *method, GtkWidget *parent)
    gtk_box_pack_start(GTK_BOX(parent), table, FALSE, FALSE, 30);
 
    wl->encLabel1 = wid = gtk_label_new(NULL);
-   gtk_label_set_markup(GTK_LABEL(wid),
-			_utf("<b>1. Preparing image:</b>"));
+   gtk_label_set_markup(GTK_LABEL(wid),_utf("<b>1. Preparing image:</b>"));
    gtk_misc_set_alignment(GTK_MISC(wid), 0.0, 0.0);
    gtk_table_attach(GTK_TABLE(table), wid, 0, 1, 0, 1, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 20, 20);
 
@@ -137,9 +134,12 @@ void RS02SetFixMaxValues(RS02Widgets *wl, int data_bytes, int ecc_bytes, gint64 
 static gboolean results_idle_func(gpointer data)
 {  RS02Widgets *wl = (RS02Widgets*)data;
 
-   SetLabelText(GTK_LABEL(wl->fixCorrected), _("Repaired: %lld"), wl->corrected); 
-   SetLabelText(GTK_LABEL(wl->fixUncorrected), _("Unrepairable: <span %s>%lld</span>"),Closure->redMarkup, wl->uncorrected); 
-   SetLabelText(GTK_LABEL(wl->fixProgress), _("Progress: %3d.%1d%%"), wl->percent/10, wl->percent%10);
+   GuiSetLabelText(wl->fixCorrected, _("Repaired: %" PRId64),
+		   wl->corrected); 
+   GuiSetLabelText(wl->fixUncorrected, _("Unrepairable: <span %s>%" PRId64 "</span>"),
+		   Closure->redMarkup, wl->uncorrected); 
+   GuiSetLabelText(wl->fixProgress, _("Progress: %3d.%1d%%"),
+		   wl->percent/10, wl->percent%10);
 
    return FALSE;
 }
@@ -158,9 +158,9 @@ void RS02UpdateFixResults(RS02Widgets *wl, gint64 corrected, gint64 uncorrected)
 
 static gboolean curve_idle_func(gpointer data)
 {  RS02Widgets *wl = (RS02Widgets*)data;
-   gint x0 = CurveX(wl->fixCurve, (double)wl->lastPercent);
-   gint x1 = CurveX(wl->fixCurve, (double)wl->percent);
-   gint y = CurveY(wl->fixCurve, wl->fixCurve->ivalue[wl->percent]);
+   gint x0 = GuiCurveX(wl->fixCurve, (double)wl->lastPercent);
+   gint x1 = GuiCurveX(wl->fixCurve, (double)wl->percent);
+   gint y = GuiCurveY(wl->fixCurve, wl->fixCurve->ivalue[wl->percent]);
    gint i;
 
    /*** Mark unused ecc values */
@@ -194,7 +194,7 @@ static gboolean curve_idle_func(gpointer data)
 
    /* Redraw the ecc capacity threshold line */
 
-   y = CurveY(wl->fixCurve, wl->eccBytes);  
+   y = GuiCurveY(wl->fixCurve, wl->eccBytes);  
    gdk_gc_set_rgb_fg_color(Closure->drawGC, Closure->greenSector);
    gdk_draw_line(wl->fixCurve->widget->window,
 		 Closure->drawGC,
@@ -226,7 +226,7 @@ static void update_geometry(RS02Widgets *wl)
 {  
    /* Curve geometry */ 
 
-   UpdateCurveGeometry(wl->fixCurve, "999", 20);
+   GuiUpdateCurveGeometry(wl->fixCurve, "999", 20);
 
    /* Label positions in the foot line */
 
@@ -241,12 +241,12 @@ static void redraw_curve(RS02Widgets *wl)
 
    /* Redraw the curve */
 
-   RedrawAxes(wl->fixCurve);
-   RedrawCurve(wl->fixCurve, wl->percent);
+   GuiRedrawAxes(wl->fixCurve);
+   GuiRedrawCurve(wl->fixCurve, wl->percent);
 
    /* Ecc capacity threshold line */
 
-   y = CurveY(wl->fixCurve, wl->eccBytes);  
+   y = GuiCurveY(wl->fixCurve, wl->eccBytes);  
    gdk_gc_set_rgb_fg_color(Closure->drawGC, Closure->greenSector);
    gdk_draw_line(wl->fixCurve->widget->window,
 		 Closure->drawGC,
@@ -274,7 +274,7 @@ void ResetRS02FixWindow(Method *method)
 
    gtk_notebook_set_current_page(GTK_NOTEBOOK(wl->fixNotebook), 0);
 
-   ZeroCurve(wl->fixCurve);
+   GuiZeroCurve(wl->fixCurve);
    RS02UpdateFixResults(wl, 0, 0);
 
    if(wl->fixCurve && wl->fixCurve->widget)
@@ -289,7 +289,6 @@ void ResetRS02FixWindow(Method *method)
 /*
  * Create the Fix window contents
  */
-
 
 void CreateRS02FixWindow(Method *method, GtkWidget *parent)
 {  RS02Widgets *wl;
@@ -344,7 +343,7 @@ void CreateRS02FixWindow(Method *method, GtkWidget *parent)
    ignore = gtk_label_new("footer_tab");
    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), wl->fixFootline, ignore);
 
-   wl->fixCurve  = CreateCurve(d_area, _("Errors/Ecc block"), "%d", 1000, CURVE_PERCENT);
+   wl->fixCurve  = GuiCreateCurve(d_area, _("Errors/Ecc block"), "%d", 1000, CURVE_PERCENT);
    wl->fixCurve->enable = DRAW_ICURVE;
 }
 
@@ -395,8 +394,8 @@ static void cache_cb(GtkWidget *widget, gpointer data)
    utf  = g_locale_to_utf8(text, -1, NULL, NULL, NULL);
    gtk_label_set_markup(GTK_LABEL(lwoh->normalLabel), utf);
    gtk_label_set_markup(GTK_LABEL(lwoh->linkLabel), utf);
-   SetOnlineHelpLinkText(lwoh, text);
-   UpdateMethodPreferences();
+   GuiSetOnlineHelpLinkText(lwoh, text);
+   GuiUpdateMethodPreferences();
    g_free(text);
    g_free(utf);
 }
@@ -415,16 +414,19 @@ static void toggle_cb(GtkWidget *widget, gpointer data)
 	 gtk_widget_set_sensitive(wl->dvdEntry2A, TRUE);
 	 gtk_widget_set_sensitive(wl->bdEntry1A, TRUE);
 	 gtk_widget_set_sensitive(wl->bdEntry2A, TRUE);
+	 gtk_widget_set_sensitive(wl->bdEntry3A, TRUE);
 	 gtk_widget_set_sensitive(wl->cdButtonA, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdButton1A, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdButton2A, TRUE);
 	 gtk_widget_set_sensitive(wl->bdButton1A, TRUE);
 	 gtk_widget_set_sensitive(wl->bdButton2A, TRUE);
+	 gtk_widget_set_sensitive(wl->bdButton3A, TRUE);
 	 gtk_widget_set_sensitive(wl->cdUndoButtonA, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton1A, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton2A, TRUE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton1A, TRUE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton2A, TRUE);
+	 gtk_widget_set_sensitive(wl->bdUndoButton3A, TRUE);
 
 	 gtk_widget_set_sensitive(wl->otherEntryA, FALSE);
 
@@ -440,16 +442,19 @@ static void toggle_cb(GtkWidget *widget, gpointer data)
 	 gtk_widget_set_sensitive(wl->dvdEntry2B, TRUE);
 	 gtk_widget_set_sensitive(wl->bdEntry1B, TRUE);
 	 gtk_widget_set_sensitive(wl->bdEntry2B, TRUE);
+	 gtk_widget_set_sensitive(wl->bdEntry3B, TRUE);
 	 gtk_widget_set_sensitive(wl->cdButtonB, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdButton1B, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdButton2B, TRUE);
 	 gtk_widget_set_sensitive(wl->bdButton1B, TRUE);
 	 gtk_widget_set_sensitive(wl->bdButton2B, TRUE);
+	 gtk_widget_set_sensitive(wl->bdButton3B, TRUE);
 	 gtk_widget_set_sensitive(wl->cdUndoButtonB, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton1B, TRUE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton2B, TRUE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton1B, TRUE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton2B, TRUE);
+	 gtk_widget_set_sensitive(wl->bdUndoButton3B, TRUE);
 
 	 gtk_widget_set_sensitive(wl->otherEntryB, FALSE);
 
@@ -466,16 +471,19 @@ static void toggle_cb(GtkWidget *widget, gpointer data)
 	 gtk_widget_set_sensitive(wl->dvdEntry2A, FALSE);
 	 gtk_widget_set_sensitive(wl->bdEntry1A, FALSE);
 	 gtk_widget_set_sensitive(wl->bdEntry2A, FALSE);
+	 gtk_widget_set_sensitive(wl->bdEntry3A, FALSE);
 	 gtk_widget_set_sensitive(wl->cdButtonA, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdButton1A, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdButton2A, FALSE);
 	 gtk_widget_set_sensitive(wl->bdButton1A, FALSE);
 	 gtk_widget_set_sensitive(wl->bdButton2A, FALSE);
+	 gtk_widget_set_sensitive(wl->bdButton3A, FALSE);
 	 gtk_widget_set_sensitive(wl->cdUndoButtonA, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton1A, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton2A, FALSE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton1A, FALSE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton2A, FALSE);
+	 gtk_widget_set_sensitive(wl->bdUndoButton3A, FALSE);
 
 	 gtk_widget_set_sensitive(wl->otherEntryA, TRUE);
 
@@ -492,16 +500,19 @@ static void toggle_cb(GtkWidget *widget, gpointer data)
 	 gtk_widget_set_sensitive(wl->dvdEntry2B, FALSE);
 	 gtk_widget_set_sensitive(wl->bdEntry1B, FALSE);
 	 gtk_widget_set_sensitive(wl->bdEntry2B, FALSE);
+	 gtk_widget_set_sensitive(wl->bdEntry3B, FALSE);
 	 gtk_widget_set_sensitive(wl->cdButtonB, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdButton1B, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdButton2B, FALSE);
 	 gtk_widget_set_sensitive(wl->bdButton1B, FALSE);
 	 gtk_widget_set_sensitive(wl->bdButton2B, FALSE);
+	 gtk_widget_set_sensitive(wl->bdButton3B, FALSE);
 	 gtk_widget_set_sensitive(wl->cdUndoButtonB, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton1B, FALSE);
 	 gtk_widget_set_sensitive(wl->dvdUndoButton2B, FALSE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton1B, FALSE);
 	 gtk_widget_set_sensitive(wl->bdUndoButton2B, FALSE);
+	 gtk_widget_set_sensitive(wl->bdUndoButton3B, FALSE);
 
 	 gtk_widget_set_sensitive(wl->otherEntryB, TRUE);
 
@@ -522,7 +533,7 @@ static void query_cb(GtkWidget *widget, gpointer data)
    gint64 size;
  
    size = CurrentMediumSize(TRUE);
-   g_snprintf(value, 40, "%lld", (long long int)size);
+   g_snprintf(value, 40, "%" PRId64, size);
 
    if(widget == wl->cdButtonA || widget == wl->cdButtonB)
    {  gtk_entry_set_text(GTK_ENTRY(wl->cdEntryA), value);
@@ -530,7 +541,7 @@ static void query_cb(GtkWidget *widget, gpointer data)
    }
 
    if(widget == wl->cdUndoButtonA || widget == wl->cdUndoButtonB)
-   {  g_snprintf(value, 40, "%lld", (long long int)Closure->savedCDSize);
+   {  g_snprintf(value, 40, "%" PRId64, Closure->savedCDSize);
       gtk_entry_set_text(GTK_ENTRY(wl->cdEntryA), value);
       gtk_entry_set_text(GTK_ENTRY(wl->cdEntryB), value);
    }
@@ -541,7 +552,7 @@ static void query_cb(GtkWidget *widget, gpointer data)
    }
 
    if(widget == wl->dvdUndoButton1A || widget == wl->dvdUndoButton1B)
-   {  g_snprintf(value, 40, "%lld", (long long int)Closure->savedDVDSize1);
+   {  g_snprintf(value, 40, "%" PRId64, Closure->savedDVDSize1);
       gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry1A), value);
       gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry1B), value);
    }
@@ -552,7 +563,7 @@ static void query_cb(GtkWidget *widget, gpointer data)
    }
 
    if(widget == wl->dvdUndoButton2A || widget == wl->dvdUndoButton2B )
-   {  g_snprintf(value, 40, "%lld", (long long int)Closure->savedDVDSize2);
+   {  g_snprintf(value, 40, "%" PRId64, Closure->savedDVDSize2);
       gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry2A), value);
       gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry2B), value);
    }
@@ -563,7 +574,7 @@ static void query_cb(GtkWidget *widget, gpointer data)
    }
 
    if(widget == wl->bdUndoButton1A || widget == wl->bdUndoButton1B)
-   {  g_snprintf(value, 40, "%lld", (long long int)Closure->savedBDSize1);
+   {  g_snprintf(value, 40, "%" PRId64, Closure->savedBDSize1);
       gtk_entry_set_text(GTK_ENTRY(wl->bdEntry1A), value);
       gtk_entry_set_text(GTK_ENTRY(wl->bdEntry1B), value);
    }
@@ -574,9 +585,20 @@ static void query_cb(GtkWidget *widget, gpointer data)
    }
 
    if(widget == wl->bdUndoButton2A || widget == wl->bdUndoButton2B )
-   {  g_snprintf(value, 40, "%lld", (long long int)Closure->savedBDSize2);
+   {  g_snprintf(value, 40, "%" PRId64, Closure->savedBDSize2);
       gtk_entry_set_text(GTK_ENTRY(wl->bdEntry2A), value);
       gtk_entry_set_text(GTK_ENTRY(wl->bdEntry2B), value);
+   }
+
+   if(widget == wl->bdButton3A || widget == wl->bdButton3B)
+   {  gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3A), value);
+      gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3B), value);
+   }
+
+   if(widget == wl->bdUndoButton3A || widget == wl->bdUndoButton3B )
+   {  g_snprintf(value, 40, "%" PRId64, Closure->savedBDSize3);
+      gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3A), value);
+      gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3B), value);
    }
 }
 
@@ -632,6 +654,15 @@ static void entry_tracker_cb(GtkWidget *widget, gpointer data)
       gtk_entry_set_text(GTK_ENTRY(wl->bdEntry2A), text);
    }
 
+   if(widget == wl->bdEntry3A)
+   {  const char *text = gtk_entry_get_text(GTK_ENTRY(wl->bdEntry3A));
+      gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3B), text);
+   }
+   if(widget == wl->bdEntry3B)
+   {  const char *text = gtk_entry_get_text(GTK_ENTRY(wl->bdEntry3B));
+      gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3A), text);
+   }
+
    if(widget == wl->otherEntryA)
    {  const char *text = gtk_entry_get_text(GTK_ENTRY(wl->otherEntryA));
       gtk_entry_set_text(GTK_ENTRY(wl->otherEntryB), text);
@@ -681,6 +712,8 @@ void ReadRS02Preferences(Method *method)
    Closure->bdSize1 = value > 0 ? value : 0; 
    value = atoll(gtk_entry_get_text(GTK_ENTRY(wl->bdEntry2A)));
    Closure->bdSize2 = value > 0 ? value : 0; 
+   value = atoll(gtk_entry_get_text(GTK_ENTRY(wl->bdEntry3A)));
+   Closure->bdSize3 = value > 0 ? value : 0; 
 
    if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(wl->radio1A)))   
    {  Closure->mediumSize = 0;
@@ -720,8 +753,9 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
 
    /* Drive capacity table header */
 
-   lwoh = CreateLabelWithOnlineHelp(_("Using the smallest possible size from table"), _("Use smallest possible size from following table (in sectors):"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("Using the smallest possible size from table"),
+				       _("Use smallest possible size from following table (in sectors):"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
    vbox2 = gtk_vbox_new(FALSE, 0);
    gtk_box_pack_start(GTK_BOX(hbox), vbox2, FALSE, FALSE, 0);
@@ -740,20 +774,21 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
          wl->radio1B = radio;
 	 gtk_box_pack_start(GTK_BOX(hbox), radio, FALSE, FALSE, 0);
 	 gtk_box_pack_start(GTK_BOX(hbox), lwoh->normalLabel, FALSE, FALSE, 0);
-	 AddHelpWidget(lwoh, hbox);
+	 GuiAddHelpWidget(lwoh, hbox);
       }
    }
 
-   AddHelpParagraph(lwoh, _("<b>Determine augmented image size from table</b>\n\n"
-			    "Augmented images fill up unused medium space "
-			    "with error correction information. Activate this option "
-			    "if you want the augmented image to fit on the smallest "
-			    "possible medium.\n\n"
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Determine augmented image size from table</b>\n\n"
+	"Augmented images fill up unused medium space "
+	"with error correction information. Activate this option "
+	"if you want the augmented image to fit on the smallest "
+	"possible medium.\n\n"
 
-			    "In order to pick a suitable medium the available media "
-			    "capacities must be known. Default sizes for CD and "
-			    "one/two layered DVD and BD are given in the table. You can edit "
-			    "these sizes according to your needs."));
+	"In order to pick a suitable medium the available media "
+	"capacities must be known. Default sizes for CD and "
+	"one/two layered DVD and BD are given in the table. You can edit "
+	"these sizes according to your needs."));
 
    table = gtk_table_new(5, 6, FALSE);
    gtk_box_pack_start(GTK_BOX(hbox), table, FALSE, FALSE, 0);
@@ -763,8 +798,8 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
 
    /* CD capacity table row */
 
-   lwoh = CreateLabelWithOnlineHelp(_("CD-R / CD-RW:"), _("CD-R / CD-RW:"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("CD-R / CD-RW:"), _("CD-R / CD-RW:"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
      gtk_misc_set_alignment(GTK_MISC(lwoh->linkLabel), 0.0, 0.0); 
      gtk_table_attach(GTK_TABLE(table), lwoh->linkBox, 0, 1, 1, 2, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
@@ -803,28 +838,29 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
    g_signal_connect(G_OBJECT(wl->cdUndoButtonB), "clicked", G_CALLBACK(query_cb), wl);
    gtk_box_pack_start(GTK_BOX(hbox), wl->cdUndoButtonB, FALSE, FALSE, 0);
 
-   AddHelpWidget(lwoh, hbox);
+   GuiAddHelpWidget(lwoh, hbox);
 
-   AddHelpParagraph(lwoh, _("<b>CD medium size</b>\n\n"
-			    "This is the maximum capacity assumed for 80min CD media. "
-			    "Images smaller than this value will be "
-			    "augmented with error correction information "
-			    "so that they will fit on the specified CD.\n\n"
-			    "You can enter the medium size in sectors of 2K each, "
-			    "or press the \"query medium\" button to use the size "
-			    "of a medium currently inserted in the selected "
-			    "drive. Sometimes this value is incorrect, though.\n"
-			    "Use the arrow button to revert to the last saved value.\n\n"
-			    "Please note that augmented images will at most triple "
-			    "in size as the highest possible redundancy is 200%%.\n"
-			    "Even if this limit is not reached the augmented image "
-			    "may be a few sectors smaller than specified for "
-			    "technical reasons."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>CD medium size</b>\n\n"
+	"This is the maximum capacity assumed for 80min CD media. "
+	"Images smaller than this value will be "
+	"augmented with error correction information "
+	"so that they will fit on the specified CD.\n\n"
+	"You can enter the medium size in sectors of 2K each, "
+	"or press the \"query medium\" button to use the size "
+	"of a medium currently inserted in the selected "
+	"drive. Sometimes this value is incorrect, though.\n"
+	"Use the arrow button to revert to the last saved value.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
 
    /* DVD capacity table row */
 
-   lwoh = CreateLabelWithOnlineHelp(_("DVD 1 layer:"), _("DVD 1 layer:"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("DVD 1 layer:"), _("DVD 1 layer:"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
      gtk_misc_set_alignment(GTK_MISC(lwoh->linkLabel), 0.0, 0.0); 
      gtk_table_attach(GTK_TABLE(table), lwoh->linkBox, 0, 1, 2, 3, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
@@ -863,28 +899,29 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
    g_signal_connect(G_OBJECT(wl->dvdUndoButton1B), "clicked", G_CALLBACK(query_cb), wl);
    gtk_box_pack_start(GTK_BOX(hbox), wl->dvdUndoButton1B, FALSE, FALSE, 0);
 
-   AddHelpWidget(lwoh, hbox);
+   GuiAddHelpWidget(lwoh, hbox);
 
-   AddHelpParagraph(lwoh, _("<b>Single layer DVD medium size</b>\n\n"
-			    "This is the maximum capacity assumed for single layer DVD media. "
-			    "Images exceeding the smaller media sizes but smaller "
-			    "than this value will be augmented with error correction information "
-			    "so that they will fit on the specified DVD.\n\n"
-			    "You can enter the medium size in sectors of 2K each, "
-			    "or press the \"query medium\" button to use the size "
-			    "of a medium currently inserted in the selected "
-			    "drive. Sometimes this value is incorrect, though.\n"
-			    "Use the arrow button to revert to the last saved value.\n\n"
-			    "Please note that augmented images will at most triple "
-			    "in size as the highest possible redundancy is 200%%.\n"
-			    "Even if this limit is not reached the augmented image "
-			    "may be a few sectors smaller than specified for "
-			    "technical reasons."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Single layer DVD medium size</b>\n\n"
+	"This is the maximum capacity assumed for single layer DVD media. "
+	"Images exceeding the smaller media sizes but smaller "
+	"than this value will be augmented with error correction information "
+	"so that they will fit on the specified DVD.\n\n"
+	"You can enter the medium size in sectors of 2K each, "
+	"or press the \"query medium\" button to use the size "
+	"of a medium currently inserted in the selected "
+	"drive. Sometimes this value is incorrect, though.\n"
+	"Use the arrow button to revert to the last saved value.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
 
    /* DVD two layer capacity table row */
 
-   lwoh = CreateLabelWithOnlineHelp(_("DVD 2 layers:"), _("DVD 2 layers:"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("DVD 2 layers:"), _("DVD 2 layers:"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
      gtk_misc_set_alignment(GTK_MISC(lwoh->linkLabel), 0.0, 0.0); 
      gtk_table_attach(GTK_TABLE(table), lwoh->linkBox, 0, 1, 3, 4, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
@@ -923,28 +960,29 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
    g_signal_connect(G_OBJECT(wl->dvdUndoButton2B), "clicked", G_CALLBACK(query_cb), wl);
    gtk_box_pack_start(GTK_BOX(hbox), wl->dvdUndoButton2B, FALSE, FALSE, 0);
 
-   AddHelpWidget(lwoh, hbox);
+   GuiAddHelpWidget(lwoh, hbox);
 
-   AddHelpParagraph(lwoh, _("<b>Two layered DVD medium size</b>\n\n"
-			    "This is the maximum capacity assumed for two layered DVD media. "
-			    "Images exceeding the smaller media sizes but smaller "
-			    "than this value will be augmented with error correction information "
-			    "so that they will fit on the specified DVD.\n\n"
-			    "You can enter the medium size in sectors of 2K each, "
-			    "or press the \"query medium\" button to use the size "
-			    "of a medium currently inserted in the selected "
-			    "drive. Sometimes this value is incorrect, though.\n"
-			    "Use the arrow button to revert to the last saved value.\n\n"
-			    "Please note that augmented images will at most triple "
-			    "in size as the highest possible redundancy is 200%%.\n"
-			    "Even if this limit is not reached the augmented image "
-			    "may be a few sectors smaller than specified for "
-			    "technical reasons."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Two layered DVD medium size</b>\n\n"
+	"This is the maximum capacity assumed for two layered DVD media. "
+	"Images exceeding the smaller media sizes but smaller "
+	"than this value will be augmented with error correction information "
+	"so that they will fit on the specified DVD.\n\n"
+	"You can enter the medium size in sectors of 2K each, "
+	"or press the \"query medium\" button to use the size "
+	"of a medium currently inserted in the selected "
+	"drive. Sometimes this value is incorrect, though.\n"
+	"Use the arrow button to revert to the last saved value.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
 
    /* BD capacity table row */
 
-   lwoh = CreateLabelWithOnlineHelp(_("BD 1 layer:"), _("BD 1 layer:"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("BD 1 layer:"), _("BD 1 layer:"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
      gtk_misc_set_alignment(GTK_MISC(lwoh->linkLabel), 0.0, 0.0); 
      gtk_table_attach(GTK_TABLE(table), lwoh->linkBox, 0, 1, 4, 5, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
@@ -983,27 +1021,28 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
    g_signal_connect(G_OBJECT(wl->bdUndoButton1B), "clicked", G_CALLBACK(query_cb), wl);
    gtk_box_pack_start(GTK_BOX(hbox), wl->bdUndoButton1B, FALSE, FALSE, 0);
 
-   AddHelpWidget(lwoh, hbox);
+   GuiAddHelpWidget(lwoh, hbox);
 
-   AddHelpParagraph(lwoh, _("<b>Single layer BD medium size</b>\n\n"
-			    "This is the maximum capacity assumed for single layer BD media. "
-			    "Images exceeding the smaller media sizes but smaller "
-			    "than this value will be augmented with error correction information "
-			    "so that they will fit on the specified BD.\n\n"
-			    "You can enter the medium size in sectors of 2K each, "
-			    "or press the \"query medium\" button to use the size "
-			    "of a blank medium currently inserted in the selected drive.\n"
-			    "Use the arrow button to revert to the last saved value.\n\n"
-			    "Please note that augmented images will at most triple "
-			    "in size as the highest possible redundancy is 200%%.\n"
-			    "Even if this limit is not reached the augmented image "
-			    "may be a few sectors smaller than specified for "
-			    "technical reasons."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Single layer BD medium size</b>\n\n"
+	"This is the maximum capacity assumed for single layer BD media. "
+	"Images exceeding the smaller media sizes but smaller "
+	"than this value will be augmented with error correction information "
+	"so that they will fit on the specified BD.\n\n"
+	"You can enter the medium size in sectors of 2K each, "
+	"or press the \"query medium\" button to use the size "
+	"of a blank medium currently inserted in the selected drive.\n"
+	"Use the arrow button to revert to the last saved value.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
 
    /* BD two layer capacity table row */
 
-   lwoh = CreateLabelWithOnlineHelp(_("BD 2 layers:"), _("BD 2 layers:"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("BD 2 layers:"), _("BD 2 layers:"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
      gtk_misc_set_alignment(GTK_MISC(lwoh->linkLabel), 0.0, 0.0); 
      gtk_table_attach(GTK_TABLE(table), lwoh->linkBox, 0, 1, 5, 6, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
@@ -1042,45 +1081,109 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
    g_signal_connect(G_OBJECT(wl->bdUndoButton2B), "clicked", G_CALLBACK(query_cb), wl);
    gtk_box_pack_start(GTK_BOX(hbox), wl->bdUndoButton2B, FALSE, FALSE, 0);
 
-   AddHelpWidget(lwoh, hbox);
+   GuiAddHelpWidget(lwoh, hbox);
 
-   AddHelpParagraph(lwoh, _("<b>Two layered BD medium size</b>\n\n"
-			    "This is the maximum capacity assumed for two layered BD media. "
-			    "Images exceeding the smaller media sizes but smaller "
-			    "than this value will be augmented with error correction information "
-			    "so that they will fit on the specified BD.\n\n"
-			    "You can enter the medium size in sectors of 2K each, "
-			    "or press the \"query medium\" button to use the size "
-			    "of a blank medium currently inserted in the selected drive.\n"
-			    "Use the arrow button to revert to the last saved value.\n\n"
-			    "Please note that augmented images will at most triple "
-			    "in size as the highest possible redundancy is 200%%.\n"
-			    "Even if this limit is not reached the augmented image "
-			    "may be a few sectors smaller than specified for "
-			    "technical reasons."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Two layered BD medium size</b>\n\n"
+	"This is the maximum capacity assumed for two layered BD media. "
+	"Images exceeding the smaller media sizes but smaller "
+	"than this value will be augmented with error correction information "
+	"so that they will fit on the specified BD.\n\n"
+	"You can enter the medium size in sectors of 2K each, "
+	"or press the \"query medium\" button to use the size "
+	"of a blank medium currently inserted in the selected drive.\n"
+	"Use the arrow button to revert to the last saved value.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
+
+   /* BDXL three layer capacity table row */
+
+   lwoh = GuiCreateLabelWithOnlineHelp(_("BDXL 3 layers:"), _("BDXL 3 layers:"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
+
+     gtk_misc_set_alignment(GTK_MISC(lwoh->linkLabel), 0.0, 0.0); 
+     gtk_table_attach(GTK_TABLE(table), lwoh->linkBox, 0, 1, 6, 7, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
+
+     wl->bdEntry3A = gtk_entry_new();
+     gtk_entry_set_width_chars(GTK_ENTRY(wl->bdEntry3A), 9);
+     g_signal_connect(G_OBJECT(wl->bdEntry3A), "activate", G_CALLBACK(entry_tracker_cb), wl);
+     gtk_table_attach(GTK_TABLE(table), wl->bdEntry3A, 1, 2, 6, 7, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
+
+     wl->bdButton3A = gtk_button_new_with_label(_utf("query medium"));
+     g_signal_connect(G_OBJECT(wl->bdButton3A), "clicked", G_CALLBACK(query_cb), wl);
+     gtk_table_attach(GTK_TABLE(table), wl->bdButton3A, 2, 3, 6, 7, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
+
+     icon = gtk_image_new_from_stock(GTK_STOCK_UNDO, GTK_ICON_SIZE_SMALL_TOOLBAR);
+     wl->bdUndoButton3A = gtk_button_new();
+     gtk_container_add(GTK_CONTAINER(wl->bdUndoButton3A), icon);
+     g_signal_connect(G_OBJECT(wl->bdUndoButton3A), "clicked", G_CALLBACK(query_cb), wl);
+     gtk_table_attach(GTK_TABLE(table), wl->bdUndoButton3A, 3, 4, 6, 7, GTK_SHRINK | GTK_FILL, GTK_SHRINK, 5, 5);
+
+   hbox = gtk_hbox_new(FALSE, 4);
+
+   gtk_box_pack_start(GTK_BOX(hbox), lwoh->normalLabel, FALSE, FALSE, 0);
+
+   wl->bdEntry3B = gtk_entry_new();
+   gtk_entry_set_width_chars(GTK_ENTRY(wl->bdEntry3B), 9);
+   g_signal_connect(G_OBJECT(wl->bdEntry3B), "activate", G_CALLBACK(entry_tracker_cb), wl);
+   gtk_box_pack_start(GTK_BOX(hbox), wl->bdEntry3B, FALSE, FALSE, 0);
+
+   wl->bdButton3B = gtk_button_new_with_label(_utf("query medium"));
+   g_signal_connect(G_OBJECT(wl->bdButton3B), "clicked", G_CALLBACK(query_cb), wl);
+   gtk_box_pack_start(GTK_BOX(hbox), wl->bdButton3B, FALSE, FALSE, 0);
+
+   icon = gtk_image_new_from_stock(GTK_STOCK_UNDO, GTK_ICON_SIZE_SMALL_TOOLBAR);
+   wl->bdUndoButton3B = gtk_button_new();
+   gtk_container_add(GTK_CONTAINER(wl->bdUndoButton3B), icon);
+   g_signal_connect(G_OBJECT(wl->bdUndoButton3B), "clicked", G_CALLBACK(query_cb), wl);
+   gtk_box_pack_start(GTK_BOX(hbox), wl->bdUndoButton3B, FALSE, FALSE, 0);
+
+   GuiAddHelpWidget(lwoh, hbox);
+
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Three layered BDXL medium size</b>\n\n"
+	"This is the maximum capacity assumed for three layered BDXL media. "
+	"Images exceeding the smaller media sizes but smaller "
+	"than this value will be augmented with error correction information "
+	"so that they will fit on the specified BD.\n\n"
+	"You can enter the medium size in sectors of 2K each, "
+	"or press the \"query medium\" button to use the size "
+	"of a blank medium currently inserted in the selected drive.\n"
+	"Use the arrow button to revert to the last saved value.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
 
    /* Fill in values from the closure */
 
-   g_snprintf(value, 40, "%lld", (long long int)Closure->cdSize);
+   g_snprintf(value, 40, "%" PRId64, Closure->cdSize);
    gtk_entry_set_text(GTK_ENTRY(wl->cdEntryB), value);
    gtk_entry_set_text(GTK_ENTRY(wl->cdEntryA), value);
-   g_snprintf(value, 40, "%lld", (long long int)Closure->dvdSize1);
+   g_snprintf(value, 40, "%" PRId64, Closure->dvdSize1);
    gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry1A), value);
    gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry1B), value);
-   g_snprintf(value, 40, "%lld", (long long int)Closure->dvdSize2);
+   g_snprintf(value, 40, "%" PRId64, Closure->dvdSize2);
    gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry2A), value);
    gtk_entry_set_text(GTK_ENTRY(wl->dvdEntry2B), value);
-   g_snprintf(value, 40, "%lld", (long long int)Closure->bdSize1);
+   g_snprintf(value, 40, "%" PRId64, Closure->bdSize1);
    gtk_entry_set_text(GTK_ENTRY(wl->bdEntry1A), value);
    gtk_entry_set_text(GTK_ENTRY(wl->bdEntry1B), value);
-   g_snprintf(value, 40, "%lld", (long long int)Closure->bdSize2);
+   g_snprintf(value, 40, "%" PRId64, Closure->bdSize2);
    gtk_entry_set_text(GTK_ENTRY(wl->bdEntry2A), value);
    gtk_entry_set_text(GTK_ENTRY(wl->bdEntry2B), value);
+   g_snprintf(value, 40, "%" PRId64, Closure->bdSize3);
+   gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3A), value);
+   gtk_entry_set_text(GTK_ENTRY(wl->bdEntry3B), value);
 
    /* custom value selection */
 
-   lwoh = CreateLabelWithOnlineHelp(_("Use at most"), _("Use at most"));
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("Use at most"), _("Use at most"));
+   GuiRegisterPreferencesHelpWindow(lwoh);
 
    for(i=0; i<2; i++)
    {  GtkWidget *hbox = gtk_hbox_new(FALSE, 4);
@@ -1108,24 +1211,25 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
       }
       else
       {  wl->otherEntryB = entry;
-	 AddHelpWidget(lwoh, hbox);
+	 GuiAddHelpWidget(lwoh, hbox);
       }
    }
 
-   AddHelpParagraph(lwoh, _("<b>Use at most ... sectors</b>\n\n"
-			    "Use this option to override the table settings; "
-			    "the augmented image will be expanded to the size "
-			    "given in this field.\n"
-			    "This allows for the creation of DVD-sized augmented images "
-			    "which would normally be fitted to CD size, and to use "
-			    "non standard media.\n\n"
-			    "Please note that augmented images will at most triple "
-			    "in size as the highest possible redundancy is 200%%.\n"
-			    "Even if this limit is not reached the augmented image "
-			    "may be a few sectors smaller than specified for "
-			    "technical reasons."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>Use at most ... sectors</b>\n\n"
+	"Use this option to override the table settings; "
+	"the augmented image will be expanded to the size "
+	"given in this field.\n"
+	"This allows for the creation of DVD-sized augmented images "
+	"which would normally be fitted to CD size, and to use "
+	"non standard media.\n\n"
+	"Please note that augmented images will at most triple "
+	"in size as the highest possible redundancy is 200%%.\n"
+	"Even if this limit is not reached the augmented image "
+	"may be a few sectors smaller than specified for "
+	"technical reasons."));
 
-   g_snprintf(value, 40, "%lld", (long long int)Closure->mediumSize);
+   g_snprintf(value, 40, "%" PRId64, Closure->mediumSize);
    gtk_entry_set_text(GTK_ENTRY(wl->otherEntryA), value);
    gtk_entry_set_text(GTK_ENTRY(wl->otherEntryB), value);
 
@@ -1148,13 +1252,13 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
    gtk_box_pack_start(GTK_BOX(parent), frame, FALSE, FALSE, 0);
 
    text = g_strdup_printf(_("%d MiB of file cache"), Closure->cacheMiB);
-   lwoh = CreateLabelWithOnlineHelp(_("File cache"), text);
-   RegisterPreferencesHelpWindow(lwoh);
+   lwoh = GuiCreateLabelWithOnlineHelp(_("File cache"), text);
+   GuiRegisterPreferencesHelpWindow(lwoh);
    g_free(text);
 
    wl->cacheLwoh = lwoh;
-   LockLabelSize(GTK_LABEL(lwoh->normalLabel), _utf("%d MiB of file cache"), 2222);
-   LockLabelSize(GTK_LABEL(lwoh->linkLabel), _utf("%d MiB of file cache"), 2222);
+   GuiLockLabelSize(lwoh->normalLabel, _utf("%d MiB of file cache"), 2222);
+   GuiLockLabelSize(lwoh->linkLabel, _utf("%d MiB of file cache"), 2222);
 
    for(i=0; i<2; i++)
    {  GtkWidget *hbox = gtk_hbox_new(FALSE, 4);
@@ -1184,12 +1288,15 @@ void CreateRS02PrefsPage(Method *method, GtkWidget *parent)
       else
       {  wl->cacheScaleB = scale; 
 	 gtk_box_pack_start(GTK_BOX(hbox), lwoh->normalLabel, FALSE, FALSE, 0);
-	 AddHelpWidget(lwoh, hbox);
+	 GuiAddHelpWidget(lwoh, hbox);
       }
    }
 
-   AddHelpParagraph(lwoh, _("<b>File cache</b>\n\n"
-			    "dvdisaster optimizes access to the image and error correction "
-			    "files by maintaining its own cache. "
-			    "The preset of 32MiB is suitable for most systems."));
+   GuiAddHelpParagraph(lwoh,
+      _("<b>File cache</b>\n\n"
+	"dvdisaster optimizes access to the image and error correction "
+	"files by maintaining its own cache. "
+	"The preset of 32MiB is suitable for most systems."));
 }
+
+#endif /* WITH_GUI_YES */

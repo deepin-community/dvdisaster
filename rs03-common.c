@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,13 +20,14 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: no GUI code ***/
+
 #include "dvdisaster.h"
 
 #include "rs03-includes.h"
 
-
 /***
- *** Read and buffer CRC information from RS03 file 
+ *** Read and buffer CRC information from RS03 error correction data 
  ***/
 
 CrcBuf *RS03GetCrcBuf(Image *image)
@@ -48,13 +49,14 @@ CrcBuf *RS03GetCrcBuf(Image *image)
       csc = (RS03CksumClosure*)image->eccFileMethod->ckSumClosure;
 
       lay = CalcRS03Layout(image, ECC_FILE); 
-      cbuf = CreateCrcBuf((lay->ndata-1)*lay->sectorsPerLayer);
+      cbuf = CreateCrcBuf(image);
    }
    else 
    {  eh = image->eccHeader;
       csc = (RS03CksumClosure*)image->eccMethod->ckSumClosure;
       lay = CalcRS03Layout(image, ECC_IMAGE); 
-      cbuf = CreateCrcBuf((lay->ndata-1)*lay->sectorsPerLayer);
+      cbuf = CreateCrcBuf(image);
+      cbuf->coveredSectors=lay->firstCrcPos;
    }
 
    csc->signatureErrors=0;
@@ -153,7 +155,7 @@ CrcBuf *RS03GetCrcBuf(Image *image)
 
 	 /* Sort crc into appropriate place if CRC block is valid */
 
-	 if(crc_valid)
+	 if(crc_valid && block_idx[i] < cbuf->crcSize)  // Cave padding sectors!
 	 {  cbuf->crcbuf[block_idx[i]] = crc_buf[i];
 	    SetBit(cbuf->valid,block_idx[i]);
 	 }
@@ -163,6 +165,17 @@ CrcBuf *RS03GetCrcBuf(Image *image)
    }
 
    FreeAlignedBuffer(ab);
+
+   /* The ecc header records only the md5 sum of the data portion (if at all),
+      but not that of the whole image, so flag the md5 sums as missing. */
+
+   cbuf->md5State = MD5_BUILDING;
+
+   if(eh->methodFlags[0] & MFLAG_DATA_MD5)
+   {  memcpy(cbuf->dataMD5sum, eh->mediumSum, 16);
+      cbuf->md5State |= MD5_DATA_COMPLETE;
+   }
+
    return cbuf;
 }
 
@@ -183,9 +196,9 @@ void RS03ReadSectors(Image *image, RS03Layout *lay, unsigned char *buf,
    gint64 n;
 
    if(layer < 0 || layer > 255) 
-      Stop("RS03ReadSectors: layer %lld out of range 0 .. 255\n", layer);
+      Stop("RS03ReadSectors: layer %" PRId64 " out of range 0 .. 255\n", layer);
    if(layer_sector < 0 || layer_sector >= lay->sectorsPerLayer) 
-      Stop("RS03ReadSectors: offset %lld out of range 0 .. %lld)\n",
+      Stop("RS03ReadSectors: offset %" PRId64 " out of range 0 .. %" PRId64 ")\n",
 	   layer_sector, lay->sectorsPerLayer-1);
 
    /* "Image" file size may not be a multiple of 2048 */
@@ -232,7 +245,7 @@ void RS03ReadSectors(Image *image, RS03Layout *lay, unsigned char *buf,
       stop_sector  = start_sector + how_many - 1;
 
       if(stop_sector >= (layer+1)*lay->sectorsPerLayer)
-	Stop("RS03ReadSectors: range %lld..%lld crosses layer boundary\n",
+	Stop("RS03ReadSectors: range %" PRId64 "..%" PRId64 " crosses layer boundary\n",
 	     start_sector, stop_sector);
       target_file = image->file;
    }
@@ -325,12 +338,12 @@ void RS03ReadSectors(Image *image, RS03Layout *lay, unsigned char *buf,
    /* All sectors are consecutively readable in image case */
    
    if(!LargeSeek(target_file, (gint64)(2048*start_sector)))
-      Stop(_("Failed seeking to sector %lld in image: %s"),
+      Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 	   start_sector, strerror(errno));
 
    n = LargeRead(target_file, buf, byte_size);
    if(n != byte_size)
-      Stop(_("Failed reading sector %lld in image: %s"),
+      Stop(_("Failed reading sector %" PRId64 " in image: %s"),
 	   start_sector, strerror(errno));
 }
 
@@ -452,7 +465,7 @@ RS03Layout *CalcRS03Layout(Image *image, int target)
 	       ecc_size = strtoll(Closure->redundancy, NULL, 10);
 	       if(   ecc_size < ecc_file_size(lay->dataSectors, 8) 
 		  || ecc_size > ecc_file_size(lay->dataSectors, 170))
-		  Stop(_("Ecc file size %lldm out of useful range [%lld .. %lld]"),
+		  Stop(_("Ecc file size %" PRId64 "m out of useful range [%" PRId64 " .. %" PRId64 "]"),
 		       ecc_size, 
 		       ecc_file_size(lay->dataSectors, 8), 
 		       ecc_file_size(lay->dataSectors, 170));
@@ -510,7 +523,7 @@ RS03Layout *CalcRS03Layout(Image *image, int target)
       {  dataSectors = image->sectorSize;
 	 if(Closure->debugMode && Closure->mediumSize)
 	 {   if(dataSectors >= Closure->mediumSize)
-	       Stop(_("Medium size smaller than image size (%lld < %lld)"), Closure->mediumSize, dataSectors);
+	       Stop(_("Medium size smaller than image size (%" PRId64 " < %" PRId64 ")"), Closure->mediumSize, dataSectors);
 	     lay->mediumCapacity = Closure->mediumSize;
          }
 	 else
@@ -522,7 +535,9 @@ RS03Layout *CalcRS03Layout(Image *image, int target)
 	       lay->mediumCapacity = DVD_DL_SIZE;       /* Double layered DVD */
 	    else if(get_roots(dataSectors, BD_SL_SIZE) >= 8)
 	       lay->mediumCapacity = BD_SL_SIZE;        /* Single layered BD */
-	    else  lay->mediumCapacity = BD_DL_SIZE;     /* Double layered BD */
+	    else if(get_roots(dataSectors, BD_DL_SIZE) >= 8)
+	       lay->mediumCapacity = BD_DL_SIZE;        /* Double layered BD */
+	    else lay->mediumCapacity = BDXL_TL_SIZE;
 	 }
       }
 
@@ -554,14 +569,14 @@ RS03Layout *CalcRS03Layout(Image *image, int target)
         Verbose("Calculated layout for RS03 file:\n");
    else Verbose("Calculated layout for RS03 image:\n");
    
-   Verbose("data sectors      = %lld\n", lay->dataSectors);
-   Verbose("data padding      = %lld\n", lay->dataPadding);
-   Verbose("layer size        = %lld\n", lay->sectorsPerLayer);
-   Verbose("total sectors     = %lld\n", lay->totalSectors);
-   Verbose("medium capacity   = %lld\n", lay->mediumCapacity);
-   Verbose("header position   = %lld\n", lay->eccHeaderPos);
-   Verbose("first CRC sector  = %lld\n", lay->firstCrcPos);
-   Verbose("first ECC sector  = %lld\n", lay->firstEccPos);
+   Verbose("data sectors      = %" PRId64 "\n", lay->dataSectors);
+   Verbose("data padding      = %" PRId64 "\n", lay->dataPadding);
+   Verbose("layer size        = %" PRId64 "\n", lay->sectorsPerLayer);
+   Verbose("total sectors     = %" PRId64 "\n", lay->totalSectors);
+   Verbose("medium capacity   = %" PRId64 "\n", lay->mediumCapacity);
+   Verbose("header position   = %" PRId64 "\n", lay->eccHeaderPos);
+   Verbose("first CRC sector  = %" PRId64 "\n", lay->firstCrcPos);
+   Verbose("first ECC sector  = %" PRId64 "\n", lay->firstEccPos);
    Verbose("ndata             = %d\n", lay->ndata);
    Verbose("nroots            = %d (%4.1f%%)\n", lay->nroots, lay->redundancy);
    Verbose("\n");
@@ -603,11 +618,11 @@ void WriteRS03Header(LargeFile *file, RS03Layout *lay, EccHeader *eh)
 {  int n;
 
    if(!LargeSeek(file, 2048*lay->eccHeaderPos))
-     Stop(_("Failed seeking to ecc header at %lld: %s\n"), lay->eccHeaderPos, strerror(errno));
+     Stop(_("Failed seeking to ecc header at %" PRId64 ": %s\n"), lay->eccHeaderPos, strerror(errno));
    
    n = LargeWrite(file, eh, sizeof(EccHeader));
    if(n != sizeof(EccHeader))
-     Stop(_("Failed writing ecc header at %lld: %s\n"), lay->eccHeaderPos, strerror(errno));
+     Stop(_("Failed writing ecc header at %" PRId64 ": %s\n"), lay->eccHeaderPos, strerror(errno));
 }
 
 /***

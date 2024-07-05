@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -57,12 +59,14 @@ static void send_eof(read_closure *rc)
 
 static void cleanup(gpointer data)
 {  read_closure *rc = (read_closure*)data;
+   int i;
+   int renderers_left = TRUE;
+#ifdef WITH_GUI_YES
    int full_read = FALSE;
    int aborted   = rc->earlyTermination;
    int scan_mode = rc->scanMode;
-   int i;
-   int renderers_left = TRUE;
-
+#endif
+   
    /* Make sure that all spiral/curve render idle functions have finished.
       They depend on some structures we are going to free now. 
       If Closure->stopActions == STOP_SHUTDOWN_ALL, the main thread is
@@ -106,17 +110,17 @@ static void cleanup(gpointer data)
 
    /* Clean up reader thread */
 
+#ifdef WITH_GUI_YES
    if(rc->image)
      full_read = (rc->readOK == rc->image->dh->sectors && !Closure->crcErrors);
-
+#endif
+   
    UnregisterCleanup();
 
-   if(Closure->guiMode)
-   {  if(rc->unreportedError)
-         SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-			      _("<span %s>Aborted by unrecoverable error.</span> %lld sectors read, %lld sectors unreadable/skipped so far."),
-			      Closure->redMarkup, rc->readOK, Closure->readErrors); 
-   }
+   if(rc->unreportedError)
+     GuiSwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
+			     _("<span %s>Aborted by unrecoverable error.</span> %" PRId64 " sectors read, %" PRId64 " sectors unreadable/skipped so far."),
+			     Closure->redMarkup, rc->readOK, Closure->readErrors); 
 
    if(rc->readerImage)   
      if(!LargeClose(rc->readerImage))
@@ -149,7 +153,6 @@ static void cleanup(gpointer data)
    if(rc->speedTimer) g_timer_destroy(rc->speedTimer);
    if(rc->readTimer)  g_timer_destroy(rc->readTimer);
    if(rc->readMap) FreeBitmap(rc->readMap);
-   if(rc->crcBuf) FreeCrcBuf(rc->crcBuf);
    if(rc->volumeLabel) g_free(rc->volumeLabel);
 
    if(rc->rendererMutex)
@@ -158,41 +161,40 @@ static void cleanup(gpointer data)
    }
    
    /* trigger failure if some threads are still accessing this */
-   memset(rc, sizeof(read_closure), 0xff); 
+   memset(rc, 0xff, sizeof(read_closure));
    g_free(rc);
 
-   ClearCrcCache(); /* cache handling is currently broken. Discard the cache! */
-   
-   /* Continue with ecc file creation after read */
+   /* Continue with ecc file creation after read.
+      NOTE: Images are NOT automatically augmented after a read. */
 
+#ifdef WITH_GUI_YES
    if(Closure->readAndCreate && Closure->guiMode && !scan_mode && !aborted)  /* General prerequisites */
    {  if(   !strncmp(Closure->methodName, "RS01", 4)                         /* codec prerequisites */
 	 || (!strncmp(Closure->methodName, "RS03", 4) && Closure->eccTarget == ECC_FILE) ) 
       {	 if(!full_read)
-	 {  ModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_OK, NULL,
-			_("Automatic error correction file creation\n"
-			  "is only possible after a full reading pass.\n"));
-	    AllowActions(TRUE);
+	 {  GuiModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_OK, NULL,
+			   _("Automatic error correction file creation\n"
+			     "is only possible after a full reading pass.\n"));
+	    GuiAllowActions(TRUE);
 	 }
-	 else ContinueWithAction(ACTION_CREATE_CONT); 
+	 else GuiContinueWithAction(ACTION_CREATE_CONT); 
       }
-      else AllowActions(TRUE);
+      else
+      {  GuiAllowActions(TRUE);
+      }
    }
    else 
-     if(Closure->guiMode)
-       AllowActions(TRUE);
+   {  if(Closure->guiMode)
+      {  GuiAllowActions(TRUE);
+      }
+   }
 
-   if(!full_read && Closure->crcCache)
-     ClearCrcCache();
-
-   if(scan_mode)   /* we haven't created an image, so throw away the crc sums */
-     ClearCrcCache();
-   
    /* In GUI mode both the reader and worker are spawned sub threads;
       however in CLI mode the reader is the main thread and must not be terminated. */
 
    if(Closure->guiMode)
       g_thread_exit(0);
+#endif /* WITH_GUI_YES */
 }
 
 /***
@@ -207,19 +209,17 @@ static void register_reader(read_closure *rc)
 {
    if(rc->scanMode)  /* Output messages differ in read and scan mode */
    {  RegisterCleanup(_("Scanning aborted"), cleanup, rc);
-      if(Closure->guiMode)
-	SetLabelText(GTK_LABEL(Closure->readLinearHeadline), 
-		     "<big>%s</big>\n<i>%s</i>",
-		     _("Scanning medium for read errors."),
-		     _("Medium: not yet determined"));
+      GuiSetLabelText(Closure->readLinearHeadline, 
+		      "<big>%s</big>\n<i>%s</i>",
+		      _("Scanning medium for read errors."),
+		      _("Medium: not yet determined"));
    }
    else
    {  RegisterCleanup(_("Reading aborted"), cleanup, rc);
-      if(Closure->guiMode)
-       SetLabelText(GTK_LABEL(Closure->readLinearHeadline), 
-		    "<big>%s</big>\n<i>%s</i>",
-		    _("Preparing for reading the medium image."),
-		    _("Medium: not yet determined"));
+      GuiSetLabelText(Closure->readLinearHeadline, 
+		      "<big>%s</big>\n<i>%s</i>",
+		      _("Preparing for reading the medium image."),
+		      _("Medium: not yet determined"));
    }
 }
 
@@ -244,22 +244,20 @@ static void determine_mode(read_closure *rc)
       rc->msg = g_strdup(_("Scanning medium for read errors."));
 
       PrintLog("%s\n", rc->msg);
-      if(Closure->guiMode)
-      {  if(rc->eccMethod)
-	   SetLabelText(GTK_LABEL(Closure->readLinearHeadline), 
-			"<big>%s</big>\n<i>- %s -</i>", rc->msg,
-			_("Reading CRC information"));
-
-         else
-	   SetLabelText(GTK_LABEL(Closure->readLinearHeadline), 
-			"<big>%s</big>\n<i>%s</i>", rc->msg, rc->image->dh->mediumDescr);
+      if(rc->eccMethod)
+      {  GuiSetLabelText(Closure->readLinearHeadline, 
+			 "<big>%s</big>\n<i>- %s -</i>", rc->msg,
+			 _("Reading CRC information"));
+      }
+      else
+      {	 GuiSetLabelText(Closure->readLinearHeadline, 
+			 "<big>%s</big>\n<i>%s</i>",
+			 rc->msg, rc->image->dh->mediumDescr);
       }
 
       rc->readMarker = 0;
 
-      if(Closure->guiMode)
-	 InitializeCurve(rc, rc->image->dh->maxRate, rc->image->dh->canC2Scan);
-
+      GuiInitializeCurve(rc, rc->image->dh->maxRate, rc->image->dh->canC2Scan);
       return;
    } 
 
@@ -277,21 +275,20 @@ reopen_image:
 	 Stop(_("Can't open %s:\n%s"),Closure->imageName,strerror(errno));
 
       PrintLog(_("Creating new %s image.\n"),Closure->imageName);
-      if(Closure->guiMode)
-      {  if(rc->eccMethod)
-	    SetLabelText(GTK_LABEL(Closure->readLinearHeadline),
+      if(rc->eccMethod)
+      {  GuiSetLabelText(Closure->readLinearHeadline,
 			 "<big>%s</big>\n<i>%s</i>", rc->msg,
 			 _("Reading CRC information"));
-	 else
-	    SetLabelText(GTK_LABEL(Closure->readLinearHeadline),
-			 "<big>%s</big>\n<i>%s</i>", rc->msg, rc->image->dh->mediumDescr);
+      }
+      else
+      {	 GuiSetLabelText(Closure->readLinearHeadline,
+			 "<big>%s</big>\n<i>%s</i>", rc->msg,
+			 rc->image->dh->mediumDescr);
       }
       rc->rereading  = FALSE;
       rc->readMarker = 0;
 
-      if(Closure->guiMode)
-	 InitializeCurve(rc, rc->image->dh->maxRate, rc->image->dh->canC2Scan);
-
+      GuiInitializeCurve(rc, rc->image->dh->maxRate, rc->image->dh->canC2Scan);
       return;
    }
 
@@ -339,14 +336,14 @@ reopen_image:
       if(!Closure->guiMode)
 	 Stop(_("Image file does not match the optical disc."));
       else
-      {  int answer = ConfirmImageDeletion(Closure->imageName);
+      {  int answer = GuiConfirmImageDeletion(Closure->imageName);
 	   
 	 if(!answer)
 	 {  rc->unreportedError = FALSE;
-	    SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-				 _("<span %s>Reading aborted.</span> Please select a different image file."),
-				 Closure->redMarkup); 
-	       cleanup((gpointer)rc);
+	    GuiSwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
+				    _("<span %s>Reading aborted.</span> Please select a different image file."),
+				    Closure->redMarkup); 
+	    cleanup((gpointer)rc);
 	 }
 	 else  /* Start over with new file */
 	 {  LargeClose(rc->readerImage);
@@ -363,7 +360,7 @@ reopen_image:
 
    if(!Closure->readStart && !Closure->readEnd 
       && rc->readMarker < rc->image->dh->sectors-1 && Closure->readingPasses <= 1)
-   {  PrintLog(_("Completing image %s. Continuing with sector %lld.\n"),
+   {  PrintLog(_("Completing image %s. Continuing with sector %" PRId64 ".\n"),
 	       Closure->imageName, rc->readMarker);
       rc->firstSector = rc->readMarker;
       Closure->additionalSpiralColor = 0;  /* blue */
@@ -373,12 +370,11 @@ reopen_image:
       Closure->additionalSpiralColor = 3;  /* dark green*/
    }
       
-   if(Closure->guiMode)
-      SetLabelText(GTK_LABEL(Closure->readLinearHeadline),
-		   "<big>%s</big>\n<i>%s</i>",rc->msg,rc->image->dh->mediumDescr);
+   GuiSetLabelText(Closure->readLinearHeadline,
+		   "<big>%s</big>\n<i>%s</i>",
+		   rc->msg,rc->image->dh->mediumDescr);
 
-   if(Closure->guiMode)
-      InitializeCurve(rc, rc->image->dh->maxRate, rc->image->dh->canC2Scan);
+   GuiInitializeCurve(rc, rc->image->dh->maxRate, rc->image->dh->canC2Scan);
 }
 
 /*
@@ -395,7 +391,7 @@ static void fill_gap(read_closure *rc)
       s = rc->readMarker;
 
       if(!LargeSeek(rc->writerImage, (gint64)(2048*s)))
-	Stop(_("Failed seeking to sector %lld in image [%s]: %s"),
+	Stop(_("Failed seeking to sector %" PRId64 " in image [%s]: %s"),
 	     s, "fill", strerror(errno));
 
       while(s < rc->firstSector)
@@ -404,7 +400,7 @@ static void fill_gap(read_closure *rc)
 	 CreateMissingSector(buf, s, rc->image->imageFP, FINGERPRINT_SECTOR, rc->volumeLabel);
 	 n = LargeWrite(rc->writerImage, buf, 2048);
 	 if(n != 2048)
-	   Stop(_("Failed writing to sector %lld in image [%s]: %s"),
+	   Stop(_("Failed writing to sector %" PRId64 " in image [%s]: %s"),
 		s, "fill", strerror(errno));
 	 s++;
       }
@@ -417,31 +413,22 @@ static void fill_gap(read_closure *rc)
 
 static void prepare_crc_cache(read_closure *rc)
 {
-   Closure->crcAvailable = FALSE;
+   /*** Remove old cached CRC information.
+	The following policy holds for the CRC cache:
+	- scan/read and verify create the crc cache,
+	- but do not use cached information from previous run themselves;
+	  e.g. existing caches are deleted here
+	- create uses cached information if it is available
+	- fix is agnostic about cached information */
 
-   /*** Memory for the CRC32 sums is needed in two cases
-        and comes in two flavors: */
+  if(Closure->crcBuf)  /* release old cached information */
+  {  FreeCrcBuf(Closure->crcBuf);
+     Closure->crcBuf = NULL;
+  }
+    
+   /*** Memory for the CRC32 sums is needed in two cases: */
 
-   /* a) A full image read is attempted. 
-         The image CRC32 and md5sum are calculated on the fly,
-         as they may be used for ecc creation later. 
-         In that case we use the old Closure->crcCache storage. */
-
-   if(   !rc->scanMode && !rc->rereading 
-      && rc->firstSector == 0 && rc->lastSector == rc->image->dh->sectors-1)
-   {  if(Closure->crcCache)
-	 g_printf("Internal problem: crcCache not clean\n");
-      Closure->crcCache = g_try_malloc(sizeof(guint32) * rc->image->dh->sectors);
-
-      if(Closure->crcCache)
-	Closure->crcImageName = g_strdup(Closure->imageName);
-
-      if(rc->eccMethod && rc->eccMethod->updateCksums && rc->eccMethod->finalizeCksums)
-	rc->doMD5sums = TRUE;  /* not all codecs support these actions! */
-      MD5Init(&rc->md5ctxt);
-   }
-
-   /* b) We have suitable ecc data and want to compare CRC32sums
+   /* a) We have suitable ecc data and want to compare CRC32sums
          against it while reading. Note that for augmented images
          the checksums may be incomplete due to unreadable CRC sectors,
          so we keep them in the CrcBuf struct which deals with lost
@@ -454,31 +441,45 @@ static void prepare_crc_cache(read_closure *rc)
       method_name[4] = 0;
       PrintCLI("%s (%s) ... ",_("Reading CRC information from ecc data"),
 	                      method_name);
-      if(Closure->guiMode)
-	 SetLabelText(GTK_LABEL(Closure->readLinearHeadline),
+
+      GuiSetLabelText(Closure->readLinearHeadline,
 		      "<big>%s</big>\n<i>%s</i>", 
 		      _("Reading CRC information from ecc data"),
 		      rc->image->dh->mediumDescr);
 
       if(rc->eccMethod->getCrcBuf)
-      {  rc->crcBuf = rc->eccMethod->getCrcBuf(rc->image);
-	 Closure->crcAvailable = TRUE;
-	 if(Closure->guiMode)
-	    RedrawReadLinearWindow();
+      {  
+	 Closure->crcBuf = rc->eccMethod->getCrcBuf(rc->image);
+	 Closure->crcBuf->crcCached = TRUE;
+	 GuiRedrawReadLinearWindow();
+
+	 /* Augmented image codecs provide the CRCs and md5sums for
+	    the data portion, but not for the full image.
+	    Request calculation of them from the image. */
+	 
+	 if(Closure->crcBuf->md5State & MD5_BUILDING)
+	   rc->doChecksumsFromImage = CRCBUF_UPDATE_MD5 | CRCBUF_UPDATE_CRC_AFTER_DATA;
       }
-	
-      else rc->crcBuf = NULL;
+      else Closure->crcBuf = NULL;
 
       if(rc->eccMethod->resetCksums)
-      {  rc->doMD5sums = TRUE;
+      {  rc->doChecksumsFromCodec = TRUE;
 	 rc->eccMethod->resetCksums(rc->image);
       }
 
-      if(Closure->guiMode)
-	 SetLabelText(GTK_LABEL(Closure->readLinearHeadline),
-		      "<big>%s</big>\n<i>%s</i>", rc->msg, rc->image->dh->mediumDescr);
+      GuiSetLabelText(Closure->readLinearHeadline,
+		      "<big>%s</big>\n<i>%s</i>",
+		      rc->msg, rc->image->dh->mediumDescr);
       PrintCLI(_("done.\n"));
+      return;
    }
+
+   /* b) No ecc is available, and a full image read is attempted. 
+         The image CRC32 and md5sum are calculated on the fly,
+         as they may be used for ecc creation later. */
+
+   Closure->crcBuf = CreateCrcBuf(rc->image);
+   rc->doChecksumsFromImage = CRCBUF_UPDATE_ALL;
 }
 
 /*
@@ -488,13 +489,13 @@ static void prepare_crc_cache(read_closure *rc)
 static void prepare_timer(read_closure *rc)
 {
    if(Closure->guiMode && Closure->spinupDelay)
-     SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline,
-			  _("Waiting %d seconds for drive to spin up...\n"), Closure->spinupDelay);
+     GuiSwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline,
+			     _("Waiting %d seconds for drive to spin up...\n"), Closure->spinupDelay);
 
    SpinupDevice(rc->image->dh);
 
    if(Closure->guiMode && Closure->spinupDelay)
-     SwitchAndSetFootline(Closure->readLinearNotebook, 0, Closure->readLinearFootline, "ignore");
+     GuiSwitchAndSetFootline(Closure->readLinearNotebook, 0, Closure->readLinearFootline, "ignore");
 
    if(Closure->spinupDelay)  /* eliminate initial seek time from timing */
      ReadSectors(rc->image->dh, rc->alignedBuf[0]->buf, rc->firstSector, 1); 
@@ -510,8 +511,9 @@ static void show_progress(read_closure *rc)
 {  int percent;
 
    if(Closure->guiMode && rc->lastErrorsPrinted != Closure->readErrors)
-   {  SetLabelText(GTK_LABEL(Closure->readLinearErrors), 
-		   _("Unreadable / skipped sectors: %lld"), Closure->readErrors);
+   {  GuiSetLabelText(Closure->readLinearErrors, 
+		      _("Unreadable / skipped sectors: %" PRId64),
+		      Closure->readErrors);
       rc->lastErrorsPrinted = Closure->readErrors;
    }
 
@@ -520,21 +522,25 @@ static void show_progress(read_closure *rc)
       
    if(rc->lastPercent != percent) 
    {  gulong ignore;
+
+#ifdef WITH_GUI_YES      
       int color;
 
-      if(Closure->guiMode)
-	ChangeSpiralCursor(Closure->readLinearSpiral, percent);
-
+      GuiChangeSpiralCursor(Closure->readLinearSpiral, percent);
+#endif
+      
       if(rc->readOK <= rc->lastReadOK)  /* nothing read since last sample? */
       {  rc->speed = 0.0;
+
+#ifdef WITH_GUI_YES      
 	 if(Closure->readErrors - rc->previousReadErrors > 0)
 	    color = 2;
 	 else if(Closure->crcErrors - rc->previousCRCErrors > 0)
 	    color = 4;
 	 else color = Closure->additionalSpiralColor;
 
-	 if(Closure->guiMode)
-	    AddCurveValues(rc, percent, color, rc->maxC2);
+	 GuiAddCurveValues(rc, percent, color, rc->maxC2);
+#endif
 	 rc->lastPercent    = percent;
 	 rc->lastSpeed      = rc->speed;
 	 rc->previousReadErrors = Closure->readErrors;
@@ -545,21 +551,21 @@ static void show_progress(read_closure *rc)
       {  double kb_read = (rc->readOK - rc->lastReadOK) * 2.0;
 	 double elapsed = g_timer_elapsed(rc->speedTimer, &ignore);
 	 double kb_sec  = kb_read / elapsed;
-	 
+
+#ifdef WITH_GUI_YES
 	 if(Closure->readErrors - rc->previousReadErrors > 0)
 	    color = 2;
 	 else if(Closure->crcErrors - rc->previousCRCErrors > 0)
 	    color = 4;
 	 else color = 1;
-
+#endif
+	 
 	 if(rc->firstSpeedValue)
 	 {   rc->speed = kb_sec / rc->image->dh->singleRate;
 
-	     if(Closure->guiMode)
-	     {  AddCurveValues(rc, rc->lastPercent, color, rc->maxC2);
-		AddCurveValues(rc, percent, color, rc->maxC2);
-	     }
-	     
+	     GuiAddCurveValues(rc, rc->lastPercent, color, rc->maxC2);
+	     GuiAddCurveValues(rc, percent, color, rc->maxC2);
+
 	     rc->firstSpeedValue    = FALSE;
 	     rc->lastPercent        = percent;
 	     rc->lastSpeed          = rc->speed;
@@ -581,8 +587,7 @@ static void show_progress(read_closure *rc)
 	       cut_peaks=3;
 	    }
 
-	    if(Closure->guiMode)
-	       AddCurveValues(rc, percent, color, rc->maxC2);
+	    GuiAddCurveValues(rc, percent, color, rc->maxC2);
 
 	    if(Closure->speedWarning && rc->lastSpeed > 0.5)
 	    {  double delta = rc->speed - rc->lastSpeed;
@@ -591,10 +596,10 @@ static void show_progress(read_closure *rc)
 
 	       if(sp >= Closure->speedWarning)
 	       {  if(delta > 0.0)
-		     PrintCLI(_("Sector %lld: Speed increased to %4.1fx\n"), 
+		     PrintCLI(_("Sector %" PRId64 ": Speed increased to %4.1fx\n"), 
 			      rc->readPos, fabs(rc->speed));
 		  else
-		     PrintCLI(_("Sector %lld: Speed dropped to %4.1fx\n"),
+		     PrintCLI(_("Sector %" PRId64 ": Speed dropped to %4.1fx\n"),
 			      rc->readPos, fabs(rc->speed));
 	       }
 	    }
@@ -649,53 +654,54 @@ static gpointer worker_thread(read_closure *rc)
       nsectors = rc->nSectors[rc->writePtr];
       g_mutex_unlock(rc->mutex);
 
-      /* Write out buffer, update checksums if not in scan mode */
+      /* Write out buffer */
 
       if(!rc->scanMode)
       {  int n;
 
 	 if(!LargeSeek(rc->writerImage, (gint64)(2048*s)))
-	 {  rc->workerError = g_strdup_printf(_("Failed seeking to sector %lld in image [%s]: %s"),
+	 {  rc->workerError = g_strdup_printf(_("Failed seeking to sector %" PRId64 " in image [%s]: %s"),
 					      s, "store", strerror(errno));
 	    goto update_mutex;
 	 }
 
 	 n = LargeWrite(rc->writerImage, rc->alignedBuf[rc->writePtr]->buf, 2048*nsectors);
 	 if(n != 2048*nsectors)
-	 {  rc->workerError = g_strdup_printf(_("Failed writing to sector %lld in image [%s]: %s"),
+	 {  rc->workerError = g_strdup_printf(_("Failed writing to sector %" PRId64 " in image [%s]: %s"),
 	                                      s, "store", strerror(errno));
 	    goto update_mutex;
-	 }
-
-	 /* On-the-fly CRC calculation */
-
-	 if(Closure->crcCache)
-	 {  for(i=0; i<nsectors; i++)
-	       Closure->crcCache[s+i] = Crc32(rc->alignedBuf[rc->writePtr]->buf+2048*i, 2048);
 	 }
       }
 
       /* Do on-the-fly CRC / md5sum testing. This is the only action carried out
          in scan mode, but also done while reading. */         
 
-      if(rc->eccMethod && rc->bufState[rc->writePtr] != BUF_DEAD)
+      if(rc->bufState[rc->writePtr] != BUF_DEAD)
       {
 	for(i=0; i<nsectors; i++)
 	{  unsigned char *buf = rc->alignedBuf[rc->writePtr]->buf+2048*i;
 	   gint64 sector = s+i;
 
+	   /* Update the global checksum buffer */
+
+	   if(rc->doChecksumsFromImage)
+	      AddSectorToCrcBuffer(Closure->crcBuf, rc->doChecksumsFromImage, sector, buf, 2048);
+	   
+	   if(!rc->eccMethod) /* Nothing to do when no ecc data available */
+	     continue;
+	   
 	   /* Have the codec update its internal checksums */
 
-	   if(rc->doMD5sums)
+	   if(rc->doChecksumsFromCodec)
 	      rc->eccMethod->updateCksums(rc->image, sector, buf);
 
 	   /* Check against CRCs in the ecc data */
 	   
-	   if(rc->crcBuf && sector < rc->crcBuf->size)
-	   {  switch(CheckAgainstCrcBuffer(rc->crcBuf, sector, buf))
+	   if(Closure->crcBuf && sector < Closure->crcBuf->coveredSectors)
+	   {  switch(CheckAgainstCrcBuffer(Closure->crcBuf, sector, buf))
 	      {  case CRC_BAD:
 		   ClearProgress();
-		   PrintCLI(_("* CRC error, sector: %lld\n"), (long long int)s+i);
+		   PrintCLI(_("* CRC error, sector: %" PRId64 "\n"), s+i);
 		   Closure->crcErrors++;
 		   if(rc->readMap)  /* trigger re-read FIXME*/
 		     ClearBit(rc->readMap, sector);
@@ -731,18 +737,21 @@ update_mutex:
  *** The reader part
  ***/
 
+#ifdef WITH_GUI_YES
 static void insert_buttons(GtkDialog *dialog)
-{  
+{
   gtk_dialog_add_buttons(dialog, 
 			 _utf("Ignore once"), 1,
 			 _utf("Ignore always"), 2,
 			 _utf("Abort"), 0, NULL);
 } 
+#endif
 
 void ReadMediumLinear(gpointer data)
 {  read_closure *rc = g_malloc0(sizeof(read_closure));
    int md5_failure = 0;
    int unrecoverable_sectors = 0;
+   int corrupted_sectors = 0;
    GError *err = NULL;
    int nsectors; 
    char *t = NULL;
@@ -781,7 +790,7 @@ void ReadMediumLinear(gpointer data)
 
    /*** Open Device and query medium properties:
         rc->image will point to the optical medium, 
-        and possibly the repsective ecc file.
+        and possibly the respective ecc file.
         The on disk image is maintained in rc->reader|writerImage. */
 
    rc->image = OpenImageFromDevice(Closure->device);
@@ -818,7 +827,9 @@ void ReadMediumLinear(gpointer data)
    /*** Make sure we are compatible with the ecc data */
 
    if(rc->eccHeader && (Closure->version < rc->eccHeader->neededVersion))
-   {  if(Closure->guiMode)
+   {
+#ifdef WITH_GUI_YES
+      if(Closure->guiMode)
       {  int answer;
 
 	 if(rc->image->eccFileState == ECCFILE_PRESENT)
@@ -826,37 +837,38 @@ void ReadMediumLinear(gpointer data)
 				 _("This ecc file requires dvdisaster-%d.%d!\n\n"
 				   "Proceeding could trigger incorrect behaviour.\n"
 				   "Please read the image without using this ecc file\n"
-				   "or visit http://www.dvdisaster.org for an upgrade.\n\n"), 
+				   "or upgrade dvdisaster.\n\n"), 
 				 rc->eccHeader->neededVersion/10000,
 				 (rc->eccHeader->neededVersion%10000)/100);
 	 else
 	   answer = ModalWarning(GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, NULL,
 				 _("This image requires dvdisaster-%d.%d!\n\n"
 				   "Proceeding could trigger incorrect behaviour.\n"
-				   "Please visit http://www.dvdisaster.org for an upgrade.\n\n"), 
+				   "Please upgrade dvdisaster.\n\n"), 
 				 rc->eccHeader->neededVersion/10000,
 				 (rc->eccHeader->neededVersion%10000)/100);
 	 
 	 if(!answer)
-	 {  SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-				 _("<span %s>Aborted by user request!</span>"),
-				 Closure->redMarkup, rc->readOK,Closure->readErrors); 
+	 {  GuiSwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
+				    _("<span %s>Aborted by user request!</span>"),
+				    Closure->redMarkup); 
 	    rc->unreportedError = FALSE;  /* suppress respective error message */
 	    goto terminate;
 	 }
       }
       else
+#endif /* WITH_GUI_YES */
       {  if(rc->image->eccFileState == ECCFILE_PRESENT)
 	    PrintCLI(_("* Warning: This ecc file requires dvdisaster-%d.%d!\n"
 		    "*          Proceeding could trigger incorrect behaviour.\n"
 		    "*          Please read the image without using this ecc file\n"
-		    "*          or visit http://www.dvdisaster.org for an upgrade.\n\n"), 
+		    "*          or upgrade dvdisaster.\n\n"), 
 		  rc->eccHeader->neededVersion/10000,
 		  (rc->eccHeader->neededVersion%10000)/100);
 	else
 	    PrintCLI(_("* Warning: This image requires dvdisaster-%d.%d!\n"
 		    "*          Proceeding could trigger incorrect behaviour.\n"
-		    "*          Please visit http://www.dvdisaster.org for an upgrade.\n\n"), 
+		    "*          Please upgrade dvdisaster.\n\n"), 
 		  rc->eccHeader->neededVersion/10000,
 		  (rc->eccHeader->neededVersion%10000)/100);
       }
@@ -931,8 +943,8 @@ next_reading_pass:
 	    break;
       }
       Closure->sectorSkip = 0;
-      if(Closure->guiMode)
-	 MarkExistingSectors();
+      GuiMarkExistingSectors();
+
       rc->lastCopied = 0;  /* Start rendering the spiral from the beginning */
    }
 
@@ -952,9 +964,9 @@ next_reading_pass:
       if(Closure->stopActions)   /* somebody hit the Stop button */
       {
 	 if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-	 {   SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-				  _("<span %s>Aborted by user request!</span> %lld sectors read, %lld sectors unreadable/skipped so far."),
-				  Closure->redMarkup, rc->readOK,Closure->readErrors); 
+	 {   GuiSwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
+				     _("<span %s>Aborted by user request!</span> %" PRId64 " sectors read, %" PRId64 " sectors unreadable/skipped so far."),
+				     Closure->redMarkup, rc->readOK,Closure->readErrors); 
 	 }
 	 rc->unreportedError = FALSE;  /* suppress respective error message */
 	 goto terminate;
@@ -998,7 +1010,7 @@ reread:
 	 
 	 else
 	 {  if(!LargeSeek(rc->readerImage, (gint64)(2048*rc->readPos)))
-	       Stop(_("Failed seeking to sector %lld in image [%s]: %s"),
+	       Stop(_("Failed seeking to sector %" PRId64 " in image [%s]: %s"),
 		    rc->readPos, "reread", strerror(errno));
 
 	    if(rc->readPos+nsectors > rc->readMarker)
@@ -1010,15 +1022,21 @@ reread:
 
 	       n = LargeRead(rc->readerImage, sector_buf, 2048);
 	       if(n != 2048)
-		  Stop(_("unexpected read error in image for sector %lld"),rc->readPos);
+		  Stop(_("unexpected read error in image for sector %" PRId64),rc->readPos);
 	       err = CheckForMissingSector(sector_buf, rc->readPos+i,
 					   rc->image->fpState == 2 ? rc->image->imageFP : NULL,
 					   rc->image->fpSector);
+#if 0  /* delete me: only explain missing sectors in the medium, not the image */
 	       if(err != SECTOR_PRESENT)
 		 ExplainMissingSector(sector_buf, rc->readPos+i, err, SOURCE_IMAGE, &unrecoverable_sectors);
 	       else
-	       {  if(!rc->crcBuf
-		     || CheckAgainstCrcBuffer(rc->crcBuf, rc->readPos+i, sector_buf) != CRC_BAD)
+#endif
+	       if(err != SECTOR_PRESENT)
+	       {  unrecoverable_sectors++;
+	       }
+	       else
+	       {  if(!Closure->crcBuf
+		     || CheckAgainstCrcBuffer(Closure->crcBuf, rc->readPos+i, sector_buf) != CRC_BAD)
 		  {  ok++;  /* CRC unavailable or good */
 		     if(rc->readMap)
 		       SetBit(rc->readMap, rc->readPos+i);
@@ -1045,7 +1063,7 @@ reread:
       g_mutex_lock(rc->mutex);
       if(rc->workerError)       /* something went wrong in the worker thread */
       {	g_mutex_unlock(rc->mutex);
-	Stop(rc->workerError);
+	Stop("%s", rc->workerError);
       }
       while(rc->bufState[rc->readPtr] != BUF_EMPTY)
       {  g_cond_wait(rc->canRead, rc->mutex);
@@ -1059,29 +1077,33 @@ reread:
 
       if(status && !Closure->ignoreFatalSense 
 	 && rc->image->dh->sense.sense_key && rc->image->dh->sense.sense_key != 3 && rc->image->dh->sense.sense_key != 5)
-      {  int answer;
-
+      {
+#ifdef WITH_GUI_YES
+	 int answer;
+#endif
 	 if(!Closure->guiMode)
-	    Stop(_("Sector %lld: %s\nCan not recover from above error.\n"
+	    Stop(_("Sector %" PRId64 ": %s\nCan not recover from above error.\n"
 		   "Use the --ignore-fatal-sense option to override."),
 		 rc->readPos, GetLastSenseString(FALSE));
 
-	 answer = ModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, insert_buttons,
-			      _("Sector %lld: %s\n\n"
-				"It may not be possible to recover from this error.\n"
-				"Should the reading continue and ignore this error?"),
-			      rc->readPos, GetLastSenseString(FALSE));
+#ifdef WITH_GUI_YES
+	 answer = GuiModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, insert_buttons,
+				 _("Sector %" PRId64 ": %s\n\n"
+				   "It may not be possible to recover from this error.\n"
+				   "Should the reading continue and ignore this error?"),
+				 rc->readPos, GetLastSenseString(FALSE));
 
 	 if(answer == 2)
 	   Closure->ignoreFatalSense = 2;
 
 	 if(!answer)
-	 {  SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-				_("<span %s>Aborted by user request!</span> %lld sectors read, %lld sectors unreadable/skipped so far."),
-				 Closure->redMarkup, rc->readOK,Closure->readErrors); 
+	 {  GuiSwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
+				    _("<span %s>Aborted by user request!</span> %" PRId64 " sectors read, %" PRId64 " sectors unreadable/skipped so far."),
+				    Closure->redMarkup, rc->readOK,Closure->readErrors); 
 	    rc->unreportedError = FALSE;  /* suppress respective error message */
 	    goto terminate;
 	 }
+#endif
       }
 
       /*** Evaluate C2 scan results */
@@ -1092,7 +1114,7 @@ reread:
 	 for(i=0; i<nsectors; i++)
 	 {  if(rc->image->dh->c2[i])
 	    {  if(!status)  /* Do not print C2 and error messages together */
-		  PrintCLI(_("Sector %lld: %3d C2 errors.%s\n"), 
+		  PrintCLI(_("Sector %" PRId64 ": %3d C2 errors.%s\n"), 
 			   rc->readPos+i, rc->image->dh->c2[i], "              ");
 
 	       if(rc->image->dh->c2[i] > rc->maxC2)  /* remember highest value */
@@ -1115,7 +1137,9 @@ reread:
 					rc->image->fpState == 2 ? rc->image->imageFP : NULL,
 					rc->image->fpSector);
 	    if(err != SECTOR_PRESENT)
-	      ExplainMissingSector(sector_buf+i*2048, rc->readPos+i, err, SOURCE_MEDIUM, &unrecoverable_sectors);
+	    {  ExplainMissingSector(sector_buf+i*2048, rc->readPos+i, err, SOURCE_MEDIUM, &unrecoverable_sectors);
+	       corrupted_sectors++;  /* readable, but written corrupted */
+	    }
 	 }
       }
 
@@ -1159,9 +1183,11 @@ reread:
 	    Do NOT free the CRC cache here to avoid race condition
 	    with the worker thread! */
 
-	 if(Closure->crcCache)
-	    rc->doMD5sums = FALSE;
-
+	 if(Closure->crcBuf)
+	 {  rc->doChecksumsFromCodec = FALSE;
+	    Closure->crcBuf->md5State = MD5_INVALID;
+	 }
+	 
 	 /* Determine number of sectors to skip forward. 
 	    Make sure not to skip past the media end
 	    and to land at a multiple of dh->clusterSize. */
@@ -1190,7 +1216,7 @@ reread:
 	       g_mutex_lock(rc->mutex);
 	       if(rc->workerError)       /* something went wrong in the worker thread */
 	       {  g_mutex_unlock(rc->mutex);
-		  Stop(rc->workerError);
+		  Stop("%s", rc->workerError);
 	       }
 	       
 	       while(rc->bufState[rc->readPtr] != BUF_EMPTY)
@@ -1222,7 +1248,7 @@ reread:
 	 {  int i;
 
 	    PrintCLIorLabel(Closure->status,
-			    _("Sector %lld: %s Skipping %d sectors.\n"),
+			    _("Sector %" PRId64 ": %s Skipping %d sectors.\n"),
 			    rc->readPos, GetLastSenseString(FALSE), nfill-1);  
 	    for(i=0; i<nfill; i++)         /* workaround: large values for nfill */
 	    {  Closure->readErrors++;      /* would exceed sampling of green/red */
@@ -1250,7 +1276,7 @@ reread:
 	    }
 	    else 
 	    {  PrintCLIorLabel(Closure->status,
-			       _("Sector %lld: %s\n"),
+			       _("Sector %" PRId64 ": %s\n"),
 			       rc->readPos, GetLastSenseString(FALSE));  
 	       if(rc->readPos >= rc->image->dh->sectors - 2) tao_tail++;
 	       Closure->readErrors++;
@@ -1272,9 +1298,10 @@ step_counter:
         to checksum means we have ecc data - we can fix the image using ecc
         rather than by re-reading it. */
 
-   if(Closure->guiMode)
-     ChangeSpiralCursor(Closure->readLinearSpiral, -1); /* switch cursor off */
-
+#ifdef WITH_GUI_YES
+   GuiChangeSpiralCursor(Closure->readLinearSpiral, -1); /* switch cursor off */
+#endif
+   
    rc->pass++;
    rc->image->dh->pass = rc->pass;
    
@@ -1283,11 +1310,10 @@ step_counter:
       && rc->pass < Closure->readingPasses)
    {  int renderers_left = TRUE;
        
-      if(Closure->guiMode)
-	   SetLabelText(GTK_LABEL(Closure->readLinearHeadline), 
-			_("<big>Trying to complete image, reading pass %d of %d.</big>\n%s"),
-			rc->pass+1, Closure->readingPasses, rc->image->dh->mediumDescr);
-      else PrintCLI(_("\nTrying to complete image, reading pass %d of %d.\n"),
+      GuiSetLabelText(Closure->readLinearHeadline, 
+		      _("<big>Trying to complete image, reading pass %d of %d.</big>\n%s"),
+		      rc->pass+1, Closure->readingPasses, rc->image->dh->mediumDescr);
+      PrintCLI(_("\nTrying to complete image, reading pass %d of %d.\n"),
 		    rc->pass+1, Closure->readingPasses);
 
 
@@ -1314,11 +1340,8 @@ step_counter:
 
    /*** Finalize on-the-fly checksum calculation */
 
-   if(rc->doMD5sums && rc->eccMethod)
+   if(rc->doChecksumsFromCodec && rc->eccMethod)
         md5_failure = rc->eccMethod->finalizeCksums(rc->image);
-   else ClearCrcCache();  /* deferred until here to avoid race condition */
-
-   Verbose("CRC %s.\n", Closure->crcCache ? "cached" : "NOT created");
 
    /*** Print summary */
 
@@ -1327,20 +1350,26 @@ step_counter:
    /* We were re-reading an incomplete image */
 
    if(rc->rereading)
-   {  if(!Closure->readErrors) t = g_strdup_printf(_("%lld sectors read.     "),rc->readOK);
-      else                     t = g_strdup_printf(_("%lld sectors read; %lld unreadable sectors."),rc->readOK,Closure->readErrors);
+   {  if(!Closure->readErrors) t = g_strdup_printf(_("%" PRId64 " sectors read.     "),rc->readOK);
+      else                     t = g_strdup_printf(_("%" PRId64 " sectors read; %" PRId64 " unreadable sectors."),rc->readOK,Closure->readErrors);
    }
 
    /* We were reading the image for the first time */
 
    else  /* not rereading */
-   {  /* Image was fully readable and had no CRC errors (if CRC was available at all!).
+   {  /* Image was fully readable, but contained some sectors marked as defective */
+      if(corrupted_sectors > 0 && !Closure->readErrors)
+	{  t = g_strdup_printf(_("All sectors are readable, but %d contain defective content."),
+			       corrupted_sectors);
+      }
+      else
+      /* Image was fully readable and had no CRC errors (if CRC was available at all!).
          So we had no faulty sectors, but ... */
       if(!Closure->readErrors && !Closure->crcErrors) 
       {
 	 if(rc->image->eccFile)  /* ...maybe wrong image size? */
 	 {  if(rc->image->dh->sectors != rc->image->expectedSectors)
-	       t = g_strdup_printf(_("All sectors successfully read, but wrong image length (%lld sectors difference)"), rc->image->dh->sectors - rc->image->expectedSectors);
+	       t = g_strdup_printf(_("All sectors successfully read, but wrong image length (%" PRId64 " sectors difference)"), rc->image->dh->sectors - rc->image->expectedSectors);
 	 }
 	                  /* ...or bad ecc md5 sum (theoretically impossible by now)? */
 	 if(   rc->readOK == rc->image->dh->sectors  /* no user limited range */  
@@ -1351,33 +1380,39 @@ step_counter:
 
 	 if(!t) 
 	 {  if(rc->eccMethod) /* we had CRC sums to compare against */
-	     {  if(rc->crcIncomplete)
-		      t = g_strdup(_("All sectors successfully read, but incomplete or damaged checksums."));
-	        else  t = g_strdup(_("All sectors successfully read. Checksums match."));
-	     }
-	     else t = g_strdup(_("All sectors successfully read."));
+	    {  if(rc->crcIncomplete)
+		    t = g_strdup(_("All sectors successfully read, but incomplete or damaged checksums."));
+	       else t = g_strdup(_("All sectors successfully read. Checksums match."));
+	    }
+	    else t = g_strdup(_("All sectors successfully read."));
 	 }
       }
       else /* we have unreadable or damaged sectors */
       {  if(Closure->readErrors && !Closure->crcErrors)
-	      t = g_strdup_printf(_("%lld unreadable sectors."),Closure->readErrors);
+	      t = g_strdup_printf(_("%" PRId64 " unreadable sectors."),Closure->readErrors);
          else if(!Closure->readErrors && Closure->crcErrors)
 	 {  if(md5_failure & CRC_MD5_BAD)
-	       t = g_strdup_printf(_("%lld CRC errors and a md5sum mismatch in the CRC section."),Closure->crcErrors);
+	       t = g_strdup_printf(_("%" PRId64 " CRC errors and a md5sum mismatch in the CRC section."),Closure->crcErrors);
 	    else
-	       t = g_strdup_printf(_("%lld CRC errors."),Closure->crcErrors);
+	       t = g_strdup_printf(_("%" PRId64 " CRC errors."),Closure->crcErrors);
 	 }
-	 else t = g_strdup_printf(_("%lld CRC errors, %lld unreadable sectors."),
+	 else t = g_strdup_printf(_("%" PRId64 " CRC errors, %" PRId64 " unreadable sectors."),
 				  Closure->crcErrors, Closure->readErrors);
       }
    }
 
    PrintLog("\n%s\n",t);
    if(Closure->guiMode)
-   {  if(rc->scanMode) SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-					 "%s%s",_("Scanning finished: "),t);
-      else             SwitchAndSetFootline(Closure->readLinearNotebook, 1, Closure->readLinearFootline, 
-					 "%s%s",_("Reading finished: "),t);
+   {  if(rc->scanMode)
+      {  GuiSwitchAndSetFootline(Closure->readLinearNotebook,
+				 1, Closure->readLinearFootline, 
+				 "%s%s",_("Scanning finished: "),t);
+      }
+      else
+      {  GuiSwitchAndSetFootline(Closure->readLinearNotebook,
+				 1, Closure->readLinearFootline, 
+				 "%s%s",_("Reading finished: "),t);
+      }
    }
    if(t) g_free(t);
 
@@ -1390,17 +1425,29 @@ step_counter:
       if(Closure->guiMode)
         answer = ModalWarning(GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, NULL,
 			      _("%d sectors missing at the end of the disc.\n"
-				"This is okay if the CD was written in TAO (track at once) mode.\n"
-				"The Image will be truncated accordingly. See the manual for details.\n"),
-			      tao_tail);
+				"This is okay if the CD was written in TAO (track at once) mode.\n%s"),
+			      tao_tail,
+			      rc->scanMode
+			      ?
+			      _("See the manual for details.\n")
+			      :
+			      _("The Image will be truncated accordingly. See the manual for details.\n")
+			      );
       else 
-        answer = ModalWarning(GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, NULL,
+      {  answer = ModalWarning(GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, NULL,
 			      _("%d sectors missing at the end of the disc.\n"
-				"This is okay if the CD was written in TAO (track at once) mode.\n"
-				"The Image will be truncated accordingly. See the manual for details.\n"
-				"Use the --dao option to disable image truncating.\n"),
-			      tao_tail);
-     
+				"This is okay if the CD was written in TAO (track at once) mode.\n%s"),
+			       tao_tail,
+			       rc->scanMode
+			       ?
+			       _("See the manual for details.\n"
+				 "Use the --dao option to disable this message.\n")
+			       :
+			       _("The Image will be truncated accordingly. See the manual for details.\n"
+				 "Use the --dao option to disable image truncating.\n")
+
+			       );
+      }
       if(!rc->scanMode && answer)
         if(!LargeTruncate(rc->writerImage, (gint64)(2048*(rc->image->dh->sectors-tao_tail))))
 	  Stop(_("Could not truncate %s: %s\n"),Closure->imageName,strerror(errno));
@@ -1414,9 +1461,13 @@ step_counter:
 
    /*** Close and clean up */
 
+   if(Closure->readErrors || Closure->crcErrors) 
+     Closure->crcBuf->md5State = MD5_INVALID;
+     
    rc->unreportedError = FALSE;
    rc->earlyTermination = FALSE;
 
 terminate:
+   PrintCrcBuf(Closure->crcBuf);
    cleanup((gpointer)rc);
 }

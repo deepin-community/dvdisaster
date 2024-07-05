@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -95,13 +97,18 @@ int SimulateSendPacket(DeviceHandle *dh, unsigned char *cdb, int cdb_size, unsig
 		 memcpy(out_buf, buf, real_size);
 		 return real_size;
          break;
-#if 0
+
       case 0x1b: assert_cdb_length(cdb[0], cdb_size, 6);   /* START STOP */
                  assert_cdb_direction(cdb[0], DATA_NONE, direction);
+		 return 0;
 	 break;
+
       case 0x1e: assert_cdb_length(cdb[0], cdb_size, 6);   /* PREVENT ALLOW MEDIUM REMOVAL */
                  assert_cdb_direction(cdb[0], DATA_NONE, direction);
+		 return 0;
 	 break;
+
+#if 0
       case 0x23: assert_cdb_length(cdb[0], cdb_size, 10);  /* READ FORMAT CAPACITIES */
                  assert_cdb_direction(cdb[0], DATA_READ, direction);
 	 break;

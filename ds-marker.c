@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -260,18 +262,20 @@ int CheckForMissingSectors(unsigned char *buf, guint64 sector,
  *** Dialogue for indicating problem with the missing sector
  ***/
 
+#ifdef WITH_GUI_YES
 static void insert_buttons(GtkDialog *dialog)
 {  
    gtk_dialog_add_buttons(dialog, 
 			  _utf("Stop reporting these errors"), 1,
 			  _utf("Continue reporting"), 0, NULL);
 }
+#endif
 
 void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int source_type, int *number)
-{  int answer;
-   guint64 recorded_number;
+{  guint64 recorded_number;
    char *vol_label, *label_msg;
-
+   int answer;
+   
    if(Closure->noMissingWarnings)
       return;
 
@@ -316,8 +320,8 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
    {  switch(error)
       {  case SECTOR_MISSING_DISPLACED:
 	 {  char *msg = _("Unrecoverable sector found!\n\n"
-			  "Sector %lld is marked unreadable and annotated to be\n"
-			  "in a different location (%lld).\n\n"
+			  "Sector %" PRId64 " is marked unreadable and annotated to be\n"
+			  "in a different location (%" PRId64 ").\n\n"
 			  "The image was probably mastered from defective content.\n"
 			  "For example it might contain one or more files which came\n"
 			  "from a damaged medium which was NOT fully recovered.\n" 
@@ -329,8 +333,8 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
 	    if(!Closure->guiMode)
 	        PrintLogWithAsterisks(msg,sector, recorded_number, label_msg);
 	    else
-	    {  answer = ModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons, msg,
-				    sector, recorded_number, label_msg);
+	    {  answer = GuiModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons,
+				       msg, sector, recorded_number, label_msg);
    
 	       if(answer) Closure->noMissingWarnings = TRUE;
 	    }
@@ -339,7 +343,7 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
 
 	 case SECTOR_MISSING_WRONG_FP:
 	 {  char *msg = _("Unrecoverable sector found!\n\n"
-			  "Sector %lld is marked unreadable and seems to come\n"
+			  "Sector %" PRId64 " is marked unreadable and seems to come\n"
 			  "from a different medium.\n\n"
 			  "The image was probably mastered from defective content.\n"
 			  "For example it might contain one or more files which came\n"
@@ -350,10 +354,10 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
 			  "error correction data for it. Sorry for the bad news.\n");
 
 	    if(!Closure->guiMode)
-	         PrintLogWithAsterisks(msg,sector, label_msg);
+	       PrintLogWithAsterisks(msg,sector, label_msg);
 	    else
-	    {  answer = ModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons, msg,
-				    sector, label_msg);
+	    {  answer = GuiModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons,
+				       msg, sector, label_msg);
 	       if(answer) Closure->noMissingWarnings = TRUE;
 	    }
 	 }
@@ -365,7 +369,7 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
 
    if(source_type == SOURCE_MEDIUM)
    {  char *msg = _("Unrecoverable sector found!\n\n"
-		    "Sector %lld is marked unreadable on the medium.\n\n"
+		    "Sector %" PRId64 " is marked unreadable on the medium.\n\n"
 		    "The medium was probably mastered from defective content.\n"
 		    "For example it might contain one or more files which came\n"
 		    "from a damaged medium which was NOT fully recovered.\n" 
@@ -377,8 +381,8 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
      if(!Closure->guiMode)
           PrintLogWithAsterisks(msg, sector);
      else
-     {  answer = ModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons, msg,
-			     sector);
+     {  answer = GuiModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons, msg,
+				sector);
       
         if(answer) Closure->noMissingWarnings = TRUE;
      }
@@ -388,7 +392,7 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
 
    if(source_type == SOURCE_ECCFILE)
    {  char *msg = _("Unrecoverable sector found!\n\n"
-		    "Sector %lld is marked unreadable in the ecc file.\n\n"
+		    "Sector %" PRId64 " is marked unreadable in the ecc file.\n\n"
 		    "The ecc file was probably taken from a medium which\n"
 		    "was NOT fully recovered. That means that some sectors\n"
 		    "in the ecc file are missing and its error correction\n"
@@ -397,8 +401,8 @@ void ExplainMissingSector(unsigned char *buf, guint64 sector, int error, int sou
      if(!Closure->guiMode)
           PrintLogWithAsterisks(msg, sector);
      else
-     {  answer = ModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons, msg,
-			     sector);
+     {  answer = GuiModalDialog(GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, insert_buttons, msg,
+				sector);
       
         if(answer) Closure->noMissingWarnings = TRUE;
      }

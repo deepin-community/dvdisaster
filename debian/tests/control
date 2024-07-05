@@ -1,2 +1,3 @@
 Tests: unknown-system
 Depends: dvdisaster
+Restrictions: superficial

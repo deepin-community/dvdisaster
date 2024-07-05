@@ -1,3 +1,24 @@
+#  dvdisaster: Additional error correction for optical media.
+#  Copyright (C) 2004-2017 Carsten Gnoerlich.
+#  Copyright (C) 2019-2021 The dvdisaster development team.
+#
+#  Email: support@dvdisaster.org
+#
+#  This file is part of dvdisaster.
+#
+#  dvdisaster is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  dvdisaster is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
+
 ######################################################################
 # Begin of dvdisaster makefile template
 ######################################################################
@@ -14,6 +35,10 @@ MAN_LOCALES = de
 
 # Where to put tar archives (arch, srcdist)
 TAR_PREFIX=/dev/shm
+
+# current project homepage
+
+HOMEPAGE="https://dvdisaster.jcea.es/"
 
 ######################################################################
 # Take over variables from configure
@@ -39,6 +64,10 @@ INTL_LIBS   = $(CFG_INTL_LIBS)
 CAM_LFLAGS = $(CFG_CAM_LFLAGS)
 CAM_LIBS   = $(CFG_CAM_LIBS)
 
+GLIB_CFLAGS   = $(CFG_GLIB2_CFLAGS)
+GLIB_LIBS     = $(CFG_GLIB2_LIBS)
+GLIB_BINDIR   = $(CFG_GLIB2_BINDIR)
+
 GTK_CFLAGS   = $(CFG_GTK2_CFLAGS)
 GTK_LIBS     = $(CFG_GTK2_LIBS)
 GTK_BINDIR   = $(CFG_GTK2_BINDIR)
@@ -50,15 +79,15 @@ SYS_OPTIONS  = $(CFG_SYS_OPTIONS)
 SYS_NAME     = $(CFG_SYS_NAME)
 HAVE_OPTIONS = $(CFG_HAVE_OPTIONS)
 WITH_OPTIONS = $(CFG_WITH_OPTIONS)
-OTHER_OPTIONS = $(CFG_OTHER_OPTIONS) -DVERSION=\"$(VERSION)\"
+OTHER_OPTIONS = $(CFG_OTHER_OPTIONS) -DVERSION="\"$(VERSION)\""
 SSE2_OPTIONS = $(CFG_SSE2_OPTIONS)
 ALTIVEC_OPTIONS = $(CFG_ALTIVEC_OPTIONS)
 
-LOCATIONS = -DSRCDIR=\"$(SRCDIR)\" -DBINDIR=\"$(BINDIR)\" -DDOCDIR=\"$(DOCSUBDIR)\" -DLOCALEDIR=\"$(LOCALEDIR)\"
-COPTS = $(CFLAGS) $(LOCATIONS) $(SYS_OPTIONS) $(SYS_NAME) $(HAVE_OPTIONS) $(WITH_OPTIONS) $(OTHER_OPTIONS) $(INTL_INCL) $(CAM_INCL) $(GTK_CFLAGS) $(MUDFLAP_CFLAGS)
-LOPTS = $(LDFLAGS) $(INTL_LFLAGS) $(CAM_LFLAGS) $(EFENCE_LFLAGS) $(MUDFLAP_LFLAGS)
+LOCATIONS = -DSRCDIR="\"$(SRCDIR)\"" -DBINDIR="\"$(BINDIR)\"" -DDOCDIR="\"$(DOCSUBDIR)\"" -DLOCALEDIR="\"$(LOCALEDIR)\""
+COPTS = $(CFLAGS) $(LOCATIONS) $(SYS_OPTIONS) $(SYS_NAME) $(HAVE_OPTIONS) $(WITH_OPTIONS) $(OTHER_OPTIONS) $(INTL_INCL) $(CAM_INCL) $(GTK_CFLAGS) $(GLIB_CFLAGS)
+LOPTS = $(LDFLAGS) $(INTL_LFLAGS) $(CAM_LFLAGS) $(EFENCE_LFLAGS)
 
-LIBS = $(INTL_LIBS) $(CAM_LIBS) $(GTK_LIBS) $(EFENCE_LIBS) $(MUDFLAP_LIBS) -lm
+LIBS = $(INTL_LIBS) $(CAM_LIBS) $(GTK_LIBS) $(GLIB_LIBS) $(EFENCE_LIBS) -lm
 
 CFILES = $(CFG_CFILES)
 OFILES = $(CFG_OFILES)
@@ -79,6 +108,11 @@ all: time-stamp dvdisaster
 
 time-stamp:
 	@$(SRCDIR)/scripts/time-stamper.bash $(SRCDIR)/build.h
+	@echo "#define HOMEPAGE \"$(HOMEPAGE)\"" >>$(SRCDIR)/build.h
+
+${BUILDTMP}/closure.o: closure.c build.h
+	@echo "Compiling:" closure.c
+	@$(CC) $(COPTS) -c closure.c -o ${BUILDTMP}/closure.o
 
 dvdisaster: inlined-icons.h $(OFILES) 
 	@echo "Linking  : dvdisaster"
@@ -104,25 +138,6 @@ inlined-icons.h: icons/read.png icons/create.png icons/scan.png icons/fix.png ic
 	@gdk-pixbuf-csource --raw --name=dvdisaster_gtk_quit icons/gtk-quit.png >>inlined-icons.h
 	@gdk-pixbuf-csource --raw --name=dvdisaster_gtk_stop icons/gtk-stop.png >>inlined-icons.h
 
-$(BUILDTMP)/help-dialogs.o: help-dialogs.c simple-md5sum
-	@if test -e fingerprints.md5; \
-	then if test -e help-dialogs.h; then rm help-dialogs.h; fi; \
-	     mv inlined-icons.h inlined-icons.saved; \
-	     mv build.h build.saved; \
-	     ./simple-md5sum -b *.h *.c | sort -k2 >tmp.md5; \
-	     sort -k2 < fingerprints.md5 >tmp2.md5; \
-	     mv inlined-icons.saved inlined-icons.h; \
-	     mv build.saved build.h; \
-	     if ! cmp tmp2.md5 tmp.md5 >/dev/null; \
-	     then echo "#define MODIFIED_SOURCE 1" >> help-dialogs.h; \
-	     else echo "#define UNMODIFIED_SOURCE 1" >> help-dialogs.h; \
-	     fi; \
-	     rm tmp.md5 tmp2.md5; \
-	else echo "#define MODIFIED_SOURCE 1" >> help-dialogs.h; \
-	fi
-	@echo "Compiling:" help-dialogs.c
-	@$(CC) $(COPTS) -c help-dialogs.c -o $(BUILDTMP)/help-dialogs.o
-
 $(BUILDTMP)/rs-encoder-sse2.o: rs-encoder-sse2.c
 	@echo "Compiling:" rs-encoder-sse2.c
 	@$(CC) $(SSE2_OPTIONS) $(COPTS) -c rs-encoder-sse2.c -o $(BUILDTMP)/rs-encoder-sse2.o
@@ -137,11 +152,9 @@ locale:
 untranslated:
 	@$(MAKE) --no-print-directory -C locale check-untranslated
 
-simple-md5sum: md5.c
-	@$(CC) $(COPTS) $(MUDFLAP_CFLAGS) -DSIMPLE_MD5SUM md5.c $(MUDFLAP_LFLAGS) $(MUDFLAP_LIBS) -o simple-md5sum
-
 version.tex:
 	@echo "\\newcommand{\\projectversion}{$(VERSION)}" >$(SRCDIR)/documentation/config/version.tex
+	@echo "\\newcommand{\\homepage}{\\url{$(HOMEPAGE)}}" >>$(SRCDIR)/documentation/config/version.tex
 
 manual: version.tex
 	@echo "Producing user manual... "
@@ -225,63 +238,67 @@ show:
 
 install: dvdisaster manual
 	@echo "Installing package..."
-	install -d $(BUILDROOT)$(BINDIR)
-	install dvdisaster $(BUILDROOT)$(BINDIR)
-	install -d $(BUILDROOT)$(DOCSUBDIR)
-	install -m 644 CHANGELOG $(BUILDROOT)$(DOCSUBDIR)
-	install -m 644 COPYING $(BUILDROOT)$(DOCSUBDIR)
-	install -m 644 CREDITS* $(BUILDROOT)$(DOCSUBDIR)
-	install -m 644 README.MODIFYING $(BUILDROOT)$(DOCSUBDIR)
-	install -m 644 TODO $(BUILDROOT)$(DOCSUBDIR)
-	install -d $(BUILDROOT)$(DOCSUBDIR)
-	(cd documentation/user-manual; install -m 644 manual.pdf $(BUILDROOT)$(DOCSUBDIR))
-	install -d $(BUILDROOT)$(MANDIR)/man1
-	install -d $(BUILDROOT)$(MANDIR)/de/man1
+	install -d "$(BUILDROOT)$(BINDIR)"
+	install dvdisaster "$(BUILDROOT)$(BINDIR)"
+	install -d "$(BUILDROOT)$(DOCSUBDIR)"
+	install -m 644 CHANGELOG "$(BUILDROOT)$(DOCSUBDIR)"
+	install -m 644 COPYING "$(BUILDROOT)$(DOCSUBDIR)"
+	install -m 644 CREDITS* "$(BUILDROOT)$(DOCSUBDIR)"
+	install -m 644 TODO "$(BUILDROOT)$(DOCSUBDIR)"
+	install -d "$(BUILDROOT)$(DOCSUBDIR)"
+	(cd documentation/user-manual; install -m 644 manual.pdf "$(BUILDROOT)$(DOCSUBDIR)")
+	install -d "$(BUILDROOT)$(MANDIR)/man1"
+	install -d "$(BUILDROOT)$(MANDIR)/de/man1"
 	cd documentation; \
 	  ESCAPED_DOCSUBDIR=`echo $(DOCSUBDIR) | sed -e 's/\//\\\\\//g'`; \
-	  sed "s/%docdir%/$$ESCAPED_DOCSUBDIR\/html/" <dvdisaster.en.1 >dvdisaster.updated; \
-	  install -m 644 dvdisaster.updated $(BUILDROOT)$(MANDIR)/man1/dvdisaster.1; \
-	  sed "s/%docdir%/$$ESCAPED_DOCSUBDIR\/html/" <dvdisaster.de.1 >dvdisaster.updated; \
-	  install -m 644 dvdisaster.updated $(BUILDROOT)$(MANDIR)/de/man1/dvdisaster.1; \
+	  sed "s/%docdir%/$$ESCAPED_DOCSUBDIR\/manual.pdf/" <dvdisaster.en.1 >dvdisaster.updated; \
+	  install -m 644 dvdisaster.updated "$(BUILDROOT)$(MANDIR)/man1/dvdisaster.1"; \
+	  sed "s/%docdir%/$$ESCAPED_DOCSUBDIR\/manual.pdf/" <dvdisaster.de.1 >dvdisaster.updated; \
+	  install -m 644 dvdisaster.updated "$(BUILDROOT)$(MANDIR)/de/man1/dvdisaster.1"; \
 	  rm dvdisaster.updated
 	if echo $(WITH_OPTIONS) | grep "NLS_YES" >/dev/null; then \
 	  cd locale; \
 	  for i in ?? ??_??; do\
-	    install -d $(BUILDROOT)$(LOCALEDIR)/$$i/LC_MESSAGES; \
-	    install -m 644 $$i/LC_MESSAGES/dvdisaster.mo $(BUILDROOT)$(LOCALEDIR)/$$i/LC_MESSAGES; \
+	    install -d "$(BUILDROOT)$(LOCALEDIR)/$$i/LC_MESSAGES"; \
+	    install -m 644 $$i/LC_MESSAGES/dvdisaster.mo "$(BUILDROOT)$(LOCALEDIR)/$$i/LC_MESSAGES"; \
 	  done \
 	fi
-	@echo "# dvdisaster uninstaller script" > $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "# Usage: sh dvdisaster-uninstall.sh" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(BINDIR)/dvdisaster\" \"$(BINDIR)/dvdisaster-uninstall.sh\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/CHANGELOG\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/COPYING\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/CREDITS.de\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/CREDITS.en\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/manual.pdf\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/README.MODIFYING\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rm -f \"$(DOCSUBDIR)/TODO\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
-	@echo "rmdir \"$(DOCSUBDIR)\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh	
+	@echo "# dvdisaster uninstaller script" > "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "# Usage: sh dvdisaster-uninstall.sh" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(BINDIR)/dvdisaster\" \"$(BINDIR)/dvdisaster-uninstall.sh\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(DOCSUBDIR)/CHANGELOG\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(DOCSUBDIR)/COPYING\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(DOCSUBDIR)/CREDITS.de\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(DOCSUBDIR)/CREDITS.en\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(DOCSUBDIR)/manual.pdf\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rm -f \"$(DOCSUBDIR)/TODO\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
+	@echo "rmdir \"$(DOCSUBDIR)\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
 	@for i in $(PO_LOCALES); do \
-	  echo "rm -f \"$(LOCALEDIR)/$$i/LC_MESSAGES/dvdisaster.mo\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh ; \
+	  echo "rm \"$(LOCALEDIR)/$$i/LC_MESSAGES/dvdisaster.mo\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh" ; \
 	done
-	@echo "rm -f \"$(MANDIR)/man1/dvdisaster.1\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
+	@echo "rm -f \"$(MANDIR)/man1/dvdisaster.1\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
 	@for i in $(MAN_LOCALES); do \
-	  echo "rm -f \"$(MANDIR)/$$i/man1/dvdisaster.1\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh ; \
+	  echo "rm \"$(MANDIR)/$$i/man1/dvdisaster.1\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh" ; \
 	done
-	@echo "echo \"dvdisaster has been uninstalled.\"" >> $(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh
+	@echo "echo \"dvdisaster has been uninstalled.\"" >> "$(BUILDROOT)$(BINDIR)/dvdisaster-uninstall.sh"
 
 uninstall:
 	@echo "Uninstalling package..."
-	rm -f $(BINDIR)/dvdisaster $(BINDIR)/dvdisaster-uninstall.sh
-	rm -rf $(DOCSUBDIR)
-	rm -f $(MANDIR)/man1/dvdisaster.1
+	rm -f "$(BINDIR)/dvdisaster" "$(BINDIR)/dvdisaster-uninstall.sh"
+	rm -f "$(DOCSUBDIR)/CHANGELOG"
+	rm -f "$(DOCSUBDIR)/COPYING"
+	rm -f "$(DOCSUBDIR)/CREDITS.de"
+	rm -f "$(DOCSUBDIR)/CREDITS.en"
+	rm -f "$(DOCSUBDIR)/manual.pdf"
+	rm -f "$(DOCSUBDIR)/TODO"
+	rmdir "$(DOCSUBDIR)"
+	rm -f "$(MANDIR)/man1/dvdisaster.1"
 	for i in $(PO_LOCALES); do \
-	   rm $(LOCALEDIR)/$$i/LC_MESSAGES/dvdisaster.mo; \
+	   rm "$(LOCALEDIR)/$$i/LC_MESSAGES/dvdisaster.mo"; \
 	done
 	for i in $(MAN_LOCALES); do \
-	   rm $(MANDIR)/$$i/man1/dvdisaster.1; \
+	   rm "$(MANDIR)/$$i/man1/dvdisaster.1"; \
 	done
 
 archclean: distclean
@@ -297,31 +314,16 @@ distclean: clean
 	@echo -e "\t@echo" >>GNUmakefile
 	@echo -e "\t@echo \"Please create a Makefile by entering \\\"bash configure\\\" first\"" >>GNUmakefile
 	@echo -e "\t@echo" >>GNUmakefile
-
-# There might be a not executable simple-md5sum from a compiler run
-# under a different architecture, so make sure we have a working binary
-# in the clean target.
+	@rm -f dvdisaster-debug
 
 clean:
 	@echo "Removing rebuildable files"
-	@rm -rf *.o $(BUILDTMP)/*.o medium.* abbild.* dvdisaster .dvdisaster core core.* *.core
+	@rm -f *.o $(BUILDTMP)/*.o medium.* abbild.* dvdisaster .dvdisaster core core.* *.core
 	@rm -f inlined-icons.h help-dialogs.h
 	@find . -name \*\~ -print | xargs rm -f;
 	@find . -name \*.mo -print | xargs rm -f;
 	@find . -name \#\*\# -print | xargs rm -f;
 	@rm -f documentation/config/version.tex
-	@if test -e $(PKGNAME); then rm -rf $(PKGNAME); fi
-	@if test -e ~/.dvdisaster-original-author; then \
-	  mv build.h build.saved ;\
-	  if ! test -x simple-md5sum || ! ./simple-md5sum >/dev/null 2>&1; then \
-	    rm -f simple-md5sum; \
-	    $(MAKE) --no-print-directory simple-md5sum; \
-	    echo "[simple-md5sum (re-)built]"; \
-	  fi; \
-	  ./simple-md5sum -b *.h *.c >fingerprints.md5 ;\
-	  mv build.saved build.h; \
-	fi
-	@rm -f simple-md5sum
 	@$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/codec-specs clean;
 	@$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/user-manual clean;
 
@@ -333,7 +335,7 @@ INSTALL: documentation/install.template
 	@sed "s/@@PKGNAME/$(PKGNAME)/" <documentation/install.template >INSTALL
 
 srcdist: INSTALL distclean manual manualclean
-	@cd .. ; tar -c -j -X $(PKGNAME)/NODIST -f $(TAR_PREFIX)/$(PKGNAME).tar.bz2 $(PKGNAME)
+	@cd .. ; tar -c -j --owner=dvdisaster --group=devel -X $(PKGNAME)/NODIST -f $(TAR_PREFIX)/$(PKGNAME).tar.bz2 $(PKGNAME)
 	@cd .. ; gpg --homedir .gnupg --default-key 758BCC23 --detach-sign --output $(TAR_PREFIX)/$(PKGNAME).tar.bz2.gpg --armor $(TAR_PREFIX)/$(PKGNAME).tar.bz2 
 
 

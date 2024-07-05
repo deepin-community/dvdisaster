@@ -1,8 +1,8 @@
 #  Bash based configure - library of test functions
-#  Copyright (C) 2004-2015 Carsten Gnörlich
+#  Copyright (C) 2004-2016 Carsten Gnörlich
+#  Copyright (C) 2019-2021 The dvdisaster development team.
 #
-#  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
-#  Project homepage: http://www.dvdisaster.org
+#  Email: support@dvdisaster.org
 #
 #  Bash based configure is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -70,7 +70,7 @@
 # WITH_OPTION name default  adds -DWITH_OPTION_VALUE for -with-option=value args
 #			    to CFG_WITH_OPTIONS
 
-CONFIGURE_VERSION="0.58"
+CONFIGURE_VERSION="0.59"
 
 echo "Bash based configure V$CONFIGURE_VERSION"
 echo
@@ -313,13 +313,13 @@ function REQUIRE_GMAKE()
 
    echo -n "Checking for gmake: "
 
-   if (gmake -v | grep "GNU Make") > /dev/null 2>&1 ;
+   if (gmake -v 2>&1 | grep "GNU Make") > /dev/null 2>&1 ;
      then echo "yes"
 	  echo "MAKE = `which gmake`" >>Makefile.config
 	  return 0
    fi;
 
-   if (make -v | grep "GNU Make") > /dev/null 2>&1 ;
+   if (make -v 2>&1 | grep "GNU Make") > /dev/null 2>&1 ;
      then echo "yes"
 	  echo "MAKE = `which make`" >>Makefile.config
 	  return 0
@@ -658,7 +658,11 @@ function GET_BUILDTMP()
 {  
    BUILDTMP="$cfg_buildtmp"
    if test -z "$BUILDTMP"; then
+      if test -z "$DVDISASTER_BUILDTMP"; then
         BUILDTMP=$(pwd)
+      else
+        BUILDTMP="$DVDISASTER_BUILDTMP"
+      fi
    fi	
 
    if test -n "$cfg_help_mode"; then
@@ -667,7 +671,12 @@ function GET_BUILDTMP()
      return 0
    fi
 
-   echo "Build tmp: " $BUILDTMP
+   if ! test -e $BUILDTMP; then
+      mkdir $BUILDTMP
+      echo "Build tmp: " $BUILDTMP "(created)"
+   else  
+      echo "Build tmp: " $BUILDTMP
+   fi  
    echo "CFG_BUILDTMP = $BUILDTMP" >> Makefile.config
 }
 
@@ -1856,6 +1865,7 @@ function CHECK_ENDIAN()
    # Try automatic detection
 
    cat > conftest.c <<EOF
+#include <stdio.h>
 int main()
 {  if(sizeof(int)==4)
    {  char *c = "1234";
@@ -1924,6 +1934,7 @@ function CHECK_BITNESS()
    # Try automatic detection
 
    cat > conftest.c <<EOF
+#include <stdio.h>
 int main()
 {  switch(sizeof(char*))
    {  case 4: printf("32\n"); break;

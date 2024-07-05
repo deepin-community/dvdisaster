@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -94,8 +96,8 @@ static void open_defective_sector_file(RawBuffer *rb, char *path, LargeFile **fi
        unsigned char zero[296];
        int i,n;
 
-       PrintCLI(" * Expanding raw dump for sector %lld from 2352 to %d bytes *\n",
-		(long long)dsh->lba,  MAX_RAW_TRANSFER_SIZE);
+       PrintCLI(" * Expanding raw dump for sector %" PRId64 " from 2352 to %d bytes *\n",
+		dsh->lba,  MAX_RAW_TRANSFER_SIZE);
 
        buf = g_malloc(dsh->sectorSize*dsh->nSectors);
        for(i=0, ptr=buf; i<dsh->nSectors; i++, ptr+=2352)
@@ -188,9 +190,9 @@ int SaveDefectiveSector(RawBuffer *rb, int can_c2_scan)
 
    /* Open cache file */
 
-   filename = g_strdup_printf("%s/%s%lld.raw", 
+   filename = g_strdup_printf("%s/%s%" PRId64 ".raw", 
 			      Closure->dDumpDir, Closure->dDumpPrefix, 
-			      (long long)rb->lba);
+			      rb->lba);
 
    if(!LargeStat(filename, &length))
    {  PrintCLIorLabel(Closure->status,_(" [Creating new cache file %s]\n"), filename);
@@ -265,7 +267,7 @@ int SaveDefectiveSector(RawBuffer *rb, int can_c2_scan)
    LargeClose(file);
 
    PrintCLIorLabel(Closure->status,
-		   _(" [Appended %d/%d sectors to cache file %s; LBA=%lld, ssize=%d, %d sectors]\n"), 
+		   _(" [Appended %d/%d sectors to cache file %s; LBA=%" PRId64 ", ssize=%d, %d sectors]\n"), 
 		   count, rb->samplesRead, filename, dsh->lba, dsh->sectorSize, dsh->nSectors);
 
    g_free(filename);
@@ -289,9 +291,9 @@ int TryDefectiveSectorCache(RawBuffer *rb, unsigned char *outbuf)
    int last_sector;
    int i;
 
-   path = g_strdup_printf("%s/%s%lld.raw", 
+   path = g_strdup_printf("%s/%s%" PRId64 ".raw", 
 			  Closure->dDumpDir, Closure->dDumpPrefix, 
-			  (long long)rb->lba);
+			  rb->lba);
    open_defective_sector_file(rb, path, &file, &dsh);
    g_free(path);
 

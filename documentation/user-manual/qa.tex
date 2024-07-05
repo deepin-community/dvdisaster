@@ -257,11 +257,19 @@ Usable media by type:
 
 \medskip
 
-{\bf BD-R, BD-RW}
+{\bf BD-R, BD-RW} \quad (one or two layers)
 
 \begin{itemize}
-\item No limitations are known so far, but very few results on the
-  two-layered type (the 50GiB variety) have been reported yet.
+\item No limitations are known.
+\end{itemize}
+
+\medskip
+
+{\bf BDXL-R}
+
+\begin{itemize}
+\item Currently only the three-layered (100GB) version is tested and supported.
+\item Note: BDXL is not backwards compatible with standard BD drives.
 \end{itemize}
 
 \medskip
@@ -351,7 +359,19 @@ Usable media by type:
   You are welcome, of course, to provide an unoffical translation of the
   project documentation on your own webspace and at your own discretion. }
 
-\newpage
+ \qa{There are problems opening this manual from dvdisaster\label{qa-manual}}
+{dvdisaster uses {\tt xdg-open} for bringing up the PDF viewer. {\tt xdg-open} keeps a record of file types and applications capable of displaying them. However on some systems, {\tt xdg-open} is either not configured properly for viewing PDF, or misconfigured to use inappropriate programs like {\em Gimp}.
+
+  \smallskip
+
+  \paragraph{Remedy.} Configure {\tt xdg-open} properly. Usually the configuration is found in the ``settings'' menu of your desktop. As an alternative, use the command line to configure it for {\em xpdf}:
+
+ \smallskip
+  
+  {\tt  xdg-mime default xpdf.desktop application/pdf}}
+
+
+%\newpage
 
 \subsection{Error messages}
 \label{qa-error}
@@ -457,6 +477,6 @@ drive for reading images in these cases.}
 
 \qa{``Ecc file has been created with version 0.40.7.''}
       {Some developer versions of dvdisaster mark their ecc files with a special bit.
-        This causes dvdisaster versions upto 0.65 to falsely display the above error
+        This causes dvdisaster versions up to 0.65 to falsely display the above error
         message. Please use the developer versions only together with dvdisaster
         0.66 or newer versions. }

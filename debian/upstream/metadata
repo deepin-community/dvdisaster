@@ -1,8 +1,8 @@
 %YAML 1.1
 ---
 # https://wiki.debian.org/UpstreamMetadata
-Contact: Carsten Gnörlich <carsten@dvdisaster.org>
-Documentation: https://web.archive.org/web/20180428070843/http://dvdisaster.net/en/misc.html#manual
-Homepage: https://web.archive.org/web/20180428070843/http://dvdisaster.net/
+Contact: support@dvdisaster.org
+Documentation: https://dvdisaster.jcea.es/misc.html#manual
+Homepage: https://dvdisaster.jcea.es
 Name: dvdisaster
 Security-Contact: Carsten Gnörlich <carsten@dvdisaster.org>

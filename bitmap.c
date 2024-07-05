@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -55,9 +57,9 @@ void FreeBitmap(Bitmap *bm)
  * Count the '1' bits in the bitmap 
  */
 
-int CountBits(Bitmap *bm)
-{ int i;
-  int sum = 0;
+gint32 CountBits(Bitmap *bm)
+{ gint32 i;
+  gint32 sum = 0;
 
   for(i=0; i<bm->size; i++)
     if(GetBit(bm, i))

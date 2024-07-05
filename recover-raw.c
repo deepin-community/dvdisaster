@@ -1,9 +1,8 @@
-
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -21,6 +20,8 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: no GUI code ***/
+
 #include "dvdisaster.h"
 
 /*
@@ -35,17 +36,17 @@ void DumpSector(RawBuffer *rb, char *path)
    if(rb->samplesRead <= 0)
      return;
 
-   filename = g_strdup_printf("%s%lld.h", path, (long long)rb->lba);
+   filename = g_strdup_printf("%s%" PRId64 ".h", path, rb->lba);
 
    file = portable_fopen(filename, "w");
    
    fprintf(file, 
 	   "#define SAMPLES_READ %d\n"
 	   "#define SAMPLE_LENGTH %d\n"
-	   "#define LBA %lld\n"
+	   "#define LBA %" PRId64 "\n"
 	   "unsigned char cd_frame[][%d] = {\n",
 	   rb->samplesRead, rb->sampleSize, 
-	   (long long)rb->lba, rb->sampleSize);
+	   rb->lba, rb->sampleSize);
 
    for(i=0; i<rb->samplesRead; i++)
    {  int j;
@@ -62,7 +63,7 @@ void DumpSector(RawBuffer *rb, char *path)
 
    fclose(file);
 
-   PrintCLI(_("Sector %lld dumped to %s\n"), rb->lba, filename);
+   PrintCLI(_("Sector %" PRId64 " dumped to %s\n"), rb->lba, filename);
 
    g_free(filename);
 }
@@ -477,7 +478,7 @@ static int simple_lec(RawBuffer *rb, unsigned char *frame, char *msg)
    if(q_failures || p_failures || q_corrected || p_corrected)
    {
      PrintCLIorLabel(Closure->status, 
-		     "Sector %lld  L-EC P/Q results: %d/%d failures, %d/%d corrected (%s).\n",
+		     "Sector %" PRId64 "  L-EC P/Q results: %d/%d failures, %d/%d corrected (%s).\n",
 		     rb->lba, p_failures, q_failures, p_corrected, q_corrected, msg);
      return 1;
    }
@@ -493,6 +494,8 @@ int ValidateRawSector(RawBuffer *rb, unsigned char *frame, char *msg)
 {  int lec_did_sth = FALSE;
    unsigned char saved_msf[4];
 
+   memset(saved_msf, 0, 4);  /* shut off compiler warning */ 
+   
    /* See if the buffer was returned unchanged. */
 
    if(CheckForMissingSector(frame, rb->lba, NULL, 0) != SECTOR_PRESENT)
@@ -557,7 +560,7 @@ int ValidateRawSector(RawBuffer *rb, unsigned char *frame, char *msg)
 
   if(lec_did_sth)
     PrintCLIorLabel(Closure->status, 
-		    "Sector %lld: Recovered in raw reader by L-EC.\n",
+		    "Sector %" PRId64 ": Recovered in raw reader by L-EC.\n",
 		    rb->lba);
 
    return TRUE;
@@ -890,7 +893,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {
        PrintCLIorLabel(Closure->status, 
-		       "Sector %lld: Good. Data section passes EDC test.\n",
+		       "Sector %" PRId64 ": Good. Data section passes EDC test.\n",
 		       rb->lba);
        memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
        return 0;
@@ -906,7 +909,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
 	 && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
       {
 	 PrintCLIorLabel(Closure->status, 
-			 "Sector %lld: Recovered in raw reader after correcting sync pattern.\n",
+			 "Sector %" PRId64 ": Recovered in raw reader after correcting sync pattern.\n",
 			 rb->lba);
 	 
 	 memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
@@ -923,7 +926,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {
        PrintCLIorLabel(Closure->status, 
-		       "Sector %lld: Recovered in raw reader by iterative L-EC.\n",
+		       "Sector %" PRId64 ": Recovered in raw reader by iterative L-EC.\n",
 		       rb->lba);
 
        memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
@@ -946,7 +949,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by smart L-EC.\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by smart L-EC.\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -958,7 +961,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by plausible sector search (0).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by plausible sector search (0).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -969,7 +972,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by brute force plausible sector search (0).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by brute force plausible sector search (0).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -980,7 +983,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by mutual ack heuristic (0).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by mutual ack heuristic (0).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -991,7 +994,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by heuristic L-EC (0).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by heuristic L-EC (0).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -1002,7 +1005,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by plausible sector search (1).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by plausible sector search (1).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -1013,7 +1016,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by brute force plausible sector search (1).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by brute force plausible sector search (1).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -1024,7 +1027,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by mutual ack heuristic (1).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by mutual ack heuristic (1).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 
@@ -1035,7 +1038,7 @@ int TryCDFrameRecovery(RawBuffer *rb, unsigned char *outbuf)
    if(CheckEDC(rb->recovered, rb->xaMode)
       && CheckMSF(rb->recovered, rb->lba, STRICT_MSF_CHECK))
    {  PrintCLIorLabel(Closure->status, 
-		      "Sector %lld: Recovered in raw reader by heuristic L-EC (1).\n",
+		      "Sector %" PRId64 ": Recovered in raw reader by heuristic L-EC (1).\n",
 		      rb->lba);
       memcpy(outbuf, rb->recovered+rb->dataOffset, 2048);
       return 0; 

@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,6 +20,9 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: only GUI code ***/
+
+#ifdef WITH_GUI_YES
 #include "dvdisaster.h"
 
 /***
@@ -78,9 +81,6 @@ static void action_cb(GtkWidget *widget, gpointer data)
 	 gtk_entry_set_text(GTK_ENTRY(Closure->imageEntry), Closure->imageName);
       }
 
-      if(Closure->crcImageName && strcmp(Closure->imageName, Closure->crcImageName))
-	ClearCrcCache();
-
       g_free(Closure->eccName);
       Closure->eccName = g_strdup(gtk_entry_get_text(GTK_ENTRY(Closure->eccEntry)));
       if(Closure->autoSuffix)
@@ -94,21 +94,21 @@ static void action_cb(GtkWidget *widget, gpointer data)
       {  int len = strlen(Closure->eccName);
 
 	if(!strcmp(Closure->eccName, Closure->imageName)) 
-	{  CreateMessage(_("The .iso image and error correction file\n"
-			   "must not be the same file!\n\n"
-			   "If you intended to create or use an .iso image\n"
-			   "which is augmented with error correction data,\n"
-			   "please leave the error correction file name blank."), 
-			 GTK_MESSAGE_ERROR);
+	{  GuiCreateMessage(_("The .iso image and error correction file\n"
+			      "must not be the same file!\n\n"
+			      "If you intended to create or use an .iso image\n"
+			      "which is augmented with error correction data,\n"
+			      "please leave the error correction file name blank."), 
+			    GTK_MESSAGE_ERROR);
 	  return;
 	}
 
 	if(!strcmp(Closure->eccName+len-4, ".iso")) 
-	{  CreateMessage(_("The error correction file type must not be \".iso\".\n\n"
-			   "If you intended to create or use an .iso image\n"
-			   "which is augmented with error correction data,\n"
-			   "please leave the error correction file name blank."), 
-			 GTK_MESSAGE_ERROR);
+	{  GuiCreateMessage(_("The error correction file type must not be \".iso\".\n\n"
+			      "If you intended to create or use an .iso image\n"
+			      "which is augmented with error correction data,\n"
+			      "please leave the error correction file name blank."), 
+			    GTK_MESSAGE_ERROR);
 	  return;
 	}
       }
@@ -130,19 +130,18 @@ static void action_cb(GtkWidget *widget, gpointer data)
         break;
 
       case ACTION_READ:
-	ClearCrcCache();
-	AllowActions(FALSE);
+	GuiAllowActions(FALSE);
 
 	if(Closure->adaptiveRead) 
 	{    gtk_notebook_set_current_page(GTK_NOTEBOOK(Closure->notebook), 2);
-	     ResetAdaptiveReadWindow();
+	     GuiResetAdaptiveReadWindow();
 	     CreateGThread((GThreadFunc)ReadMediumAdaptive, (gpointer)0);
 	}
 	else 
 	{    gtk_notebook_set_current_page(GTK_NOTEBOOK(Closure->notebook), 1);
 
 	     Closure->additionalSpiralColor = 1;
-	     ResetLinearReadWindow();
+	     GuiResetLinearReadWindow();
 	     CreateGThread((GThreadFunc)ReadMediumLinear, (gpointer)0);
 	}
         break;
@@ -151,22 +150,20 @@ static void action_cb(GtkWidget *widget, gpointer data)
       case ACTION_CREATE_CONT:
 	method = FindMethod(Closure->methodName); 
 	if(!method) 
-	{  CreateMessage(_("\nMethod %s not available.\n"
-			   "Use -m without parameters for a method list.\n"), 
-			 GTK_MESSAGE_ERROR, Closure->methodName);
+	{  GuiCreateMessage(_("\nMethod %s not available.\n"
+			      "Use -m without parameters for a method list.\n"), 
+			    GTK_MESSAGE_ERROR, Closure->methodName);
 	   break;
 	}
 
 	gtk_notebook_set_current_page(GTK_NOTEBOOK(Closure->notebook), method->tabWindowIndex);
 	method->resetCreateWindow(method);
-	AllowActions(FALSE);
+	GuiAllowActions(FALSE);
 	CreateGThread((GThreadFunc)method->create, (gpointer)method);
         break;
 
       case ACTION_FIX:
       { Image *image;
-
-	ClearCrcCache();
 
 	image = OpenImageFromFile(Closure->imageName, O_RDWR, IMG_PERMS);
 	image = OpenEccFileForImage(image, Closure->eccName, O_RDWR, IMG_PERMS);
@@ -177,23 +174,22 @@ static void action_cb(GtkWidget *widget, gpointer data)
 
 	if(image && image->eccFileMethod) method = image->eccFileMethod;
 	else if(image && image->eccMethod) method = image->eccMethod;
-	else {  CreateMessage(_("Internal error: No suitable method for repairing image."),
-			      GTK_MESSAGE_ERROR);
+	else {  GuiCreateMessage(_("Internal error: No suitable method for repairing image."),
+				 GTK_MESSAGE_ERROR);
 	        return;
 	     }
 	gtk_notebook_set_current_page(GTK_NOTEBOOK(Closure->notebook),  method->tabWindowIndex+1);
 	method->resetFixWindow(method);
-	AllowActions(FALSE);
+	GuiAllowActions(FALSE);
 	CreateGThread((GThreadFunc)method->fix, (gpointer)image);
       }
         break;
 
       case ACTION_SCAN:
-	ClearCrcCache();
 	gtk_notebook_set_current_page(GTK_NOTEBOOK(Closure->notebook), 1);
 	Closure->additionalSpiralColor = -1;
-	ResetLinearReadWindow();
-	AllowActions(FALSE);
+	GuiResetLinearReadWindow();
+	GuiAllowActions(FALSE);
 	CreateGThread((GThreadFunc)ReadMediumLinear, (gpointer)1);
         break;
 
@@ -212,14 +208,14 @@ static void action_cb(GtkWidget *widget, gpointer data)
 	if(image && image->eccFileMethod) method = image->eccFileMethod;
 	else if(image && image->eccMethod) method = image->eccMethod;
 	else if(!(method = FindMethod("RS01")))
-	     {  CreateMessage(_("RS01 method not available for comparing files."),
-			      GTK_MESSAGE_ERROR);
+	     {  GuiCreateMessage(_("RS01 method not available for comparing files."),
+				 GTK_MESSAGE_ERROR);
 	        return;
 	     }
 
 	gtk_notebook_set_current_page(GTK_NOTEBOOK(Closure->notebook), method->tabWindowIndex+2);
 	method->resetVerifyWindow(method);
-	AllowActions(FALSE);
+	GuiAllowActions(FALSE);
 	CreateGThread((GThreadFunc)method->verify, (gpointer)image);
         break;
       }
@@ -240,7 +236,7 @@ static gboolean action_idle_func(gpointer action)
 }
 
 
-void ContinueWithAction(int action)
+void GuiContinueWithAction(int action)
 {
    g_idle_add(action_idle_func, GINT_TO_POINTER(action));
 }
@@ -283,52 +279,58 @@ static GtkWidget* create_action_bar(GtkNotebook *notebook)
    Closure->readButton = wid = create_button(_("button|Read"), "dvdisaster-read");
    g_signal_connect(G_OBJECT(wid), "clicked", G_CALLBACK(action_cb), (gpointer)ACTION_READ);
    gtk_box_pack_start(GTK_BOX(vbox), wid, FALSE, FALSE, 0);
-   AttachTooltip(wid, _("tooltip|Read Image"), _("Reads an optical disc image into a file (or tries to complete an existing image file)."));
+   GuiAttachTooltip(wid, _("tooltip|Read Image"),
+		    _("Reads an optical disc image into a file (or tries to complete an existing image file)."));
 
    content = gtk_vbox_new(FALSE, 0);   /* read linear window */
    ignore = gtk_label_new("read_tab_l");
    gtk_notebook_append_page(notebook, content, ignore);
-   CreateLinearReadWindow(content);
+   GuiCreateLinearReadWindow(content);
 
    content = gtk_vbox_new(FALSE, 0);   /* read adaptive window */
    ignore = gtk_label_new("read_tab_a");
    gtk_notebook_append_page(notebook, content, ignore);
-   CreateAdaptiveReadWindow(content);
+   GuiCreateAdaptiveReadWindow(content);
 
    /*** Create */
 
    Closure->createButton = wid = create_button(_("button|Create"), "dvdisaster-create");
    g_signal_connect(G_OBJECT(wid), "clicked", G_CALLBACK(action_cb), (gpointer)ACTION_CREATE);
    gtk_box_pack_start(GTK_BOX(vbox), wid, FALSE, FALSE, 0);
-   AttachTooltip(wid, _("tooltip|Create error correction data"), _("Creates error correction data. Requires an image file."));
+   GuiAttachTooltip(wid, _("tooltip|Create error correction data"),
+		    _("Creates error correction data. Requires an image file."));
 
    /*** Scan */
 
    Closure->scanButton = wid = create_button(_("button|Scan"), "dvdisaster-scan");
    g_signal_connect(G_OBJECT(wid), "clicked", G_CALLBACK(action_cb), (gpointer)ACTION_SCAN);
    gtk_box_pack_start(GTK_BOX(vbox), wid, FALSE, FALSE, 0);
-   AttachTooltip(wid, _("tooltip|Scan medium"), _("Scans medium for unreadable sectors."));
+   GuiAttachTooltip(wid, _("tooltip|Scan medium"),
+		    _("Scans medium for unreadable sectors."));
 
    /*** Fix */
 
    Closure->fixButton = wid = create_button(_("button|Fix"), "dvdisaster-fix");
    g_signal_connect(G_OBJECT(wid), "clicked", G_CALLBACK(action_cb), (gpointer)ACTION_FIX);
    gtk_box_pack_start(GTK_BOX(vbox), wid, FALSE, FALSE, 0);
-   AttachTooltip(wid, _("tooltip|Repair image"), _("Repairs an image. Requires an image file and error correction data."));
+   GuiAttachTooltip(wid, _("tooltip|Repair image"),
+		    _("Repairs an image. Requires an image file and error correction data."));
 
    /*** Verify */
 
    Closure->testButton = wid = create_button(_("button|Verify"), "dvdisaster-verify");
    g_signal_connect(G_OBJECT(wid), "clicked", G_CALLBACK(action_cb), (gpointer)ACTION_VERIFY);
    gtk_box_pack_start(GTK_BOX(vbox), wid, FALSE, FALSE, 0);
-   AttachTooltip(wid, _("tooltip|Consistency check"), _("Tests consistency of error correction data and image file."));
+   GuiAttachTooltip(wid, _("tooltip|Consistency check"),
+		    _("Tests consistency of error correction data and image file."));
 
    /*** Stop */
 
    wid = create_button(_("button|Stop"), "dvdisaster-gtk-stop");
    g_signal_connect(G_OBJECT(wid), "clicked", G_CALLBACK(action_cb), (gpointer)ACTION_STOP);
    gtk_box_pack_end(GTK_BOX(vbox), wid, FALSE, FALSE, 0);
-   AttachTooltip(wid, _("tooltip|Abort action"), _("Aborts an ongoing action."));
+   GuiAttachTooltip(wid, _("tooltip|Abort action"),
+		    _("Aborts an ongoing action."));
 
    /*** Block drive related actions if no drives were found */
 
@@ -380,10 +382,10 @@ static GtkWidget* create_action_bar(GtkNotebook *notebook)
  */
 
 static void log_cb(GtkWidget *widget, gpointer data)
-{  ShowLog();
+{  GuiShowLog();
 }
 
-void CreateMainWindow(int *argc, char ***argv)
+void GuiCreateMainWindow(int *argc, char ***argv)
 {   GtkWidget *window,*wid,*outer_box,*middle_box,*status_box,*sep;
     GtkWidget *box, *icon, *button;
     char title[80];
@@ -403,7 +405,7 @@ void CreateMainWindow(int *argc, char ***argv)
 
     /*** Create our icons */
 
-    CreateIconFactory();
+    GuiCreateIconFactory();
 
     /*** Open the main window */
 
@@ -435,13 +437,13 @@ void CreateMainWindow(int *argc, char ***argv)
 
     /* Menu and tool bar */
 
-    wid = CreateMenuBar(outer_box);
+    wid = GuiCreateMenuBar(outer_box);
     gtk_box_pack_start(GTK_BOX(outer_box), wid, FALSE, FALSE, 0);
 
     sep = gtk_hseparator_new();
     gtk_box_pack_start(GTK_BOX(outer_box), sep, FALSE, FALSE, 0);
 
-    wid = CreateToolBar(outer_box);
+    wid = GuiCreateToolBar(outer_box);
     gtk_box_pack_start(GTK_BOX(outer_box), wid, FALSE, FALSE, 3);
 
     /* Middle part */
@@ -457,7 +459,7 @@ void CreateMainWindow(int *argc, char ***argv)
     gtk_notebook_set_show_border(GTK_NOTEBOOK(wid), FALSE);
     gtk_box_pack_start(GTK_BOX(middle_box), wid, TRUE, TRUE, 0);
 
-    CreateWelcomePage(GTK_NOTEBOOK(Closure->notebook));
+    GuiCreateWelcomePage(GTK_NOTEBOOK(Closure->notebook));
 
     wid = create_action_bar((GTK_NOTEBOOK(Closure->notebook)));
     gtk_box_pack_end(GTK_BOX(middle_box), wid, FALSE, FALSE, 3);
@@ -475,7 +477,7 @@ void CreateMainWindow(int *argc, char ***argv)
 
     /* Status bar contents. */
 
-    Closure->status = GTK_LABEL(gtk_label_new(NULL));
+    Closure->status = gtk_label_new(NULL);
     gtk_label_set_ellipsize(GTK_LABEL(Closure->status), PANGO_ELLIPSIZE_END);
     gtk_misc_set_alignment(GTK_MISC(Closure->status), 0.0, 0.5);
     gtk_box_pack_start(GTK_BOX(status_box), GTK_WIDGET(Closure->status), TRUE, TRUE, 5);
@@ -484,9 +486,9 @@ void CreateMainWindow(int *argc, char ***argv)
     gtk_button_set_relief(GTK_BUTTON(button), GTK_RELIEF_NONE);
     gtk_box_pack_end(GTK_BOX(status_box), button, FALSE, FALSE, 5);
     g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(log_cb), NULL);
-    AttachTooltip(button, 
-		  _("tooltip|Protocol for current action"), 
-		  _("Displays additional information created during the current or last action."));
+    GuiAttachTooltip(button, 
+		     _("tooltip|Protocol for current action"), 
+		     _("Displays additional information created during the current or last action."));
 
     box = gtk_hbox_new(FALSE, 0);
     gtk_container_add(GTK_CONTAINER(button), box);
@@ -503,3 +505,4 @@ void CreateMainWindow(int *argc, char ***argv)
     gtk_widget_show_all(window);
     gtk_main();
 }
+#endif /* WITH_GUI_YES */

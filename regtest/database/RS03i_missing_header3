@@ -1,4 +1,4 @@
-1f6512e19177b3d371da6843711a58cf
+2ee5510fa6e73321c2759f89ac018026
 ignore
 This software comes with  ABSOLUTELY NO WARRANTY.  This
 is free software and you are welcome to redistribute it
@@ -139,15 +139,15 @@ RS03RecognizeImage: No EH, entering exhaustive search
 .. trying layer size 1409
 Scanning layers for signatures.
 - layer slice 0
--> 136 untested layers remaining
+-> 87 untested layers remaining
 - layer slice 1
 .. invalid CRC block 235304
--> 32 untested layers remaining
+-> 1 untested layers remaining
 - layer slice 2
--> 32 untested layers remaining
+-> 1 untested layers remaining
 - layer slice 3
 .. invalid CRC block 235306
--> 31 untested layers remaining
+-> 1 untested layers remaining
 - layer slice 4
 -> 1 untested layers remaining
 - layer slice 5
@@ -178,4 +178,132 @@ Error correction properties:
 
 Data integrity:
 - medium sectors   : 359295 total / 235219 data
-* quick mode        : image NOT scanned
+CalcRS03Layout(): returning cached layout (augmented)
+* missing sectors  : 154991 - 154993 
+* missing sectors  : 156400 - 156402 
+* missing sectors  : 157809 - 157811 
+* missing sectors  : 159218 - 159220 
+* missing sectors  : 160627 - 160629 
+* missing sectors  : 162036 - 162038 
+* missing sectors  : 163445 - 163447 
+* missing sectors  : 164854 - 164856 
+* missing sectors  : 166263 - 166265 
+* missing sectors  : 167672 - 167674 
+* missing sectors  : 169081 - 169083 
+* missing sectors  : 170490 - 170492 
+* missing sectors  : 171899 - 171901 
+* missing sectors  : 173308 - 173310 
+* missing sectors  : 174717 - 174719 
+* missing sectors  : 176126 - 176128 
+* missing sectors  : 177535 - 177537 
+* missing sectors  : 178944 - 178946 
+* missing sectors  : 180353 - 180355 
+* missing sectors  : 181762 - 181764 
+* missing sectors  : 183171 - 183173 
+* missing sectors  : 184580 - 184582 
+* missing sectors  : 185989 - 185991 
+* missing sectors  : 187398 - 187400 
+* missing sectors  : 188807 - 188809 
+* missing sectors  : 190216 - 190218 
+* missing sectors  : 191625 - 191627 
+* missing sectors  : 193034 - 193036 
+* missing sectors  : 194443 - 194445 
+* missing sectors  : 195852 - 195854 
+* missing sectors  : 197261 - 197262 
+* missing sector   : 211350 
+* missing sector   : 212759 
+* missing sector   : 214168 
+* missing sector   : 215577 
+* missing sector   : 216986 
+* missing sector   : 218395 
+* missing sector   : 219804 
+* missing sector   : 221213 
+* missing sector   : 222622 
+* missing sector   : 224031 
+* missing sector   : 225440 
+* missing sector   : 226849 
+* missing sector   : 228258 
+* missing sector   : 229667 
+* missing sector   : 231076 
+* missing sector   : 232485 
+* missing sector   : 233894 
+* missing sector   : 235219 
+* missing sector   : 235303 
+* missing sector   : 235305 
+* missing sector   : 235307 
+* missing sector   : 236712 
+* missing sector   : 238121 
+* missing sector   : 239530 
+* missing sector   : 240939 
+* missing sector   : 242348 
+* missing sector   : 243757 
+* missing sector   : 245166 
+* missing sector   : 246575 
+* missing sector   : 247984 
+* missing sector   : 249393 
+* missing sector   : 250802 
+* missing sector   : 252211 
+* missing sector   : 253620 
+* missing sector   : 255029 
+* missing sector   : 256438 
+* missing sector   : 257847 
+* missing sector   : 259256 
+* missing sector   : 260665 
+* missing sector   : 262074 
+* missing sector   : 263483 
+* missing sector   : 264892 
+* missing sector   : 266301 
+* missing sector   : 267710 
+* missing sector   : 269119 
+* missing sector   : 270528 
+* missing sector   : 271937 
+* missing sector   : 273346 
+* missing sector   : 274755 
+* missing sector   : 276164 
+* missing sector   : 277573 
+* missing sector   : 278982 
+* missing sector   : 280391 
+* missing sector   : 281800 
+* missing sector   : 283209 
+* missing sector   : 284618 
+* missing sector   : 286027 
+* missing sector   : 287436 
+* missing sector   : 288845 
+* missing sector   : 290254 
+* missing sector   : 291663 
+* missing sector   : 293072 
+* missing sector   : 294481 
+* missing sector   : 295890 
+* missing sector   : 297299 
+* missing sector   : 298708 
+* missing sector   : 300117 
+* missing sector   : 301526 
+* missing sector   : 302935 
+* missing sector   : 304344 
+* missing sector   : 305753 
+* missing sector   : 307162 
+* missing sector   : 308571 
+* missing sector   : 309980 
+* missing sector   : 311389 
+* missing sector   : 312798 
+* missing sector   : 314207 
+* missing sector   : 315616 
+* missing sector   : 317025 
+* missing sector   : 318434 
+* missing sector   : 319843 
+* missing sector   : 321252 
+* missing sector   : 322661 
+* missing sector   : 324070 
+* missing sector   : 325479 
+* missing sector   : 326888 
+* missing sector   : 328297 
+* missing sector   : 329706 
+* missing sector   : 331115 
+* missing sector   : 332524 
+  ... data section   : 110 sectors missing; 0 CRC errors
+  ... crc section    : 3 sectors missing; 2 signature errors
+  ... ecc section    : 69 sectors missing
+* Ecc block test   : 1403 good, 6 bad; 9268 bad sub blocks
+- erasure counts   :  avg =  30.3; worst = 87 per ecc block.
+- prognosis        : 359295 of 359295 sectors recoverable (100.0%)
+FreeCrcBuf - buffer cleared

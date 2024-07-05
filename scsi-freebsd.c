@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
- *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
+ * 
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,12 +20,14 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: no GUI code ***/
+
 #include "dvdisaster.h"
 
 #include "scsi-layer.h"
 #include "udf.h"
 
-#ifdef SYS_FREEBSD
+#if defined(SYS_FREEBSD) || defined(SYS_KFREEBSD)
 
 /* SCSI wrappers for FreeBSD are still work in progress. */
 
@@ -215,7 +217,7 @@ int SendPacket(DeviceHandle *dh, unsigned char *cmd, int cdb_size, unsigned char
 
    if(cam_send_ccb(dh->camdev, ccb) < 0) 
    {  printf("cam_send failed\n");
-      cam_error_print(dh->camdev, ccb, CAM_ESF_ALL, CAM_EPF_ALL, stderr);
+      cam_error_print(dh->camdev, ccb, CAM_ESF_ALL, CAM_EPF_ALL, stdout);
       return -1;
    }
 
@@ -241,4 +243,4 @@ int SendPacket(DeviceHandle *dh, unsigned char *cmd, int cdb_size, unsigned char
    return -1;
 }
 
-#endif /* SYS_FREEBSD */
+#endif /* defined(SYS_FREEBSD) || defined(SYS_KFREEBSD) */

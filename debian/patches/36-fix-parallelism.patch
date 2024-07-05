@@ -18,7 +18,7 @@ index 4509c48..3aae04e 100644
 --- a/GNUmakefile.template
 +++ b/GNUmakefile.template
 @@ -297,6 +297,7 @@ clean:
- 	rm -f simple-md5sum
+ 	@rm -f documentation/config/version.tex
  	$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/codec-specs clean;
  	$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/user-manual clean;
 +	$(MAKE) --no-print-directory -C $(SRCDIR)/locale clean;

@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,6 +20,8 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: no GUI code ***/
+
 #include "dvdisaster.h"
 
 #include "rs02-includes.h"
@@ -35,7 +37,7 @@ CrcBuf *RS02GetCrcBuf(Image *image)
    RS02Layout *lay;
    CrcBuf *cb;
    gint64 block_idx[256];
-   gint64 image_sectors,crc_sector;
+   gint64 crc_sector;
    gint64 s,i;
    int crc_idx, crc_valid = FALSE;
 
@@ -43,9 +45,7 @@ CrcBuf *RS02GetCrcBuf(Image *image)
    if(csc->lay) g_free(csc->lay);
    lay = csc->lay = RS02LayoutFromImage(image);
 
-   //   image_sectors = lay->eccSectors+lay->dataSectors; // remove; semantics have changed
-   image_sectors = lay->dataSectors;
-   cb = CreateCrcBuf(image_sectors);
+   cb = CreateCrcBuf(image);
 
    /* Initialize ecc block index pointers.
       The first CRC set (of lay->ndata checksums) relates to
@@ -100,6 +100,12 @@ CrcBuf *RS02GetCrcBuf(Image *image)
 
    FreeAlignedBuffer(ab);
 
+   /* The ecc header records only the md5 sum of the data portion,
+      but not that of the whole image, so flag the md5 sums as missing. */
+
+   memcpy(cb->dataMD5sum, image->eccHeader->mediumSum, 16);
+   cb->md5State = MD5_BUILDING | MD5_DATA_COMPLETE;
+   
    return cb;
 }
 
@@ -232,12 +238,12 @@ void RS02ReadSector(Image *image, RS02Layout *lay, unsigned char *buf, gint64 s)
   /* Read a real sector */
 
   if(!LargeSeek(image->file, (gint64)(2048*s)))
-    Stop(_("Failed seeking to sector %lld in image: %s"),
+    Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 	 s, strerror(errno));
 
   n = LargeRead(image->file, buf, 2048);
   if(n != 2048)
-    Stop(_("Failed reading sector %lld in image: %s"),s,strerror(errno));
+    Stop(_("Failed reading sector %" PRId64 " in image: %s"),s,strerror(errno));
 }
 
 /***
@@ -414,7 +420,9 @@ RS02Layout *CalcRS02Layout(Image *image)
 	    lay->mediumCapacity = Closure->dvdSize2; /* Double layered DVD */
       else if(image->sectorSize < Closure->bdSize1)
 	    lay->mediumCapacity = Closure->bdSize1;  /* Single layered BD */
-      else  lay->mediumCapacity = Closure->bdSize2;  /* Double layered BD */
+      else if(image->sectorSize < Closure->bdSize2)
+	    lay->mediumCapacity = Closure->bdSize2;  /* Double layered BD */
+      else  lay->mediumCapacity = Closure->bdSize3;  /* Triple layered BDXL */
    }
 
    lay->dataSectors      = image->sectorSize;
@@ -431,7 +439,8 @@ RS02Layout *CalcRS02Layout(Image *image)
       {  case 'r':   /* pick number of roots */
 	 {  char buf[len];
  
-            strncpy(buf, Closure->redundancy, len-1);
+            memcpy(buf, Closure->redundancy, len-1);
+	    buf[len-1]=0;  /* strip off the 'r' */
 	    requested_roots = atoi(buf);
 	    break;
 	 }
@@ -439,7 +448,8 @@ RS02Layout *CalcRS02Layout(Image *image)
 	 {  char buf[len];
 	    int percent;
  
-            strncpy(buf, Closure->redundancy, len-1);
+            memcpy(buf, Closure->redundancy, len-1);
+	    buf[len-1]=0; /* strip off the '%' */
 	    percent = atoi(buf);
 
 	    for(requested_roots = 7; requested_roots < 171; requested_roots++)
@@ -513,20 +523,20 @@ RS02Layout *CalcRS02Layout(Image *image)
 
    Verbose("Calculated layout for RS02 image:\n");
 
-   Verbose("data sectors      = %lld\n", lay->dataSectors);
-   Verbose("crc sectors       = %lld\n", lay->crcSectors);
-   Verbose("protected sectors = %lld (incl. 2 hdr sectors)\n", lay->protectedSectors);
-   Verbose("reed solomon secs = %lld (%d roots, %d data)\n", lay->rsSectors,lay->nroots,lay->ndata);
-   Verbose("header repeats    = %lld (using modulo %lld)\n", lay->headers, lay->headerModulo);
-   Verbose("added sectors     = %lld\n", lay->eccSectors);
-   Verbose("total image size  = %lld\n", lay->eccSectors+lay->dataSectors);
+   Verbose("data sectors      = %" PRId64 "\n", lay->dataSectors);
+   Verbose("crc sectors       = %" PRId64 "\n", lay->crcSectors);
+   Verbose("protected sectors = %" PRId64 " (incl. 2 hdr sectors)\n", lay->protectedSectors);
+   Verbose("reed solomon secs = %" PRId64 " (%d roots, %d data)\n", lay->rsSectors,lay->nroots,lay->ndata);
+   Verbose("header repeats    = %" PRId64 " (using modulo %" PRId64 ")\n", lay->headers, lay->headerModulo);
+   Verbose("added sectors     = %" PRId64 "\n", lay->eccSectors);
+   Verbose("total image size  = %" PRId64 "\n", lay->eccSectors+lay->dataSectors);
    if(requested_roots > 0)
         Verbose("medium capacity   = n.a.\n");
-   else Verbose("medium capacity   = %lld\n", lay->mediumCapacity);
+   else Verbose("medium capacity   = %" PRId64 "\n", lay->mediumCapacity);
 
    Verbose("\nInterleaving layout:\n");
-   Verbose("%lld sectors per ecc layer\n",lay->sectorsPerLayer);
-   Verbose("first layer sector with CRC data %lld (sector# %lld)\n",
+   Verbose("%" PRId64 " sectors per ecc layer\n",lay->sectorsPerLayer);
+   Verbose("first layer sector with CRC data %" PRId64 " (sector# %" PRId64 ")\n",
 	   lay->firstCrcLayerIndex, lay->dataSectors+2);
    Verbose("\n");
 
@@ -563,11 +573,11 @@ void WriteRS02Headers(LargeFile *file, RS02Layout *lay, EccHeader *eh)
    int n;
 
    if(!LargeSeek(file, 2048*lay->firstEccHeader))
-     Stop(_("Failed seeking to ecc header at %lld: %s\n"), lay->firstEccHeader, strerror(errno));
+     Stop(_("Failed seeking to ecc header at %" PRId64 ": %s\n"), lay->firstEccHeader, strerror(errno));
    
    n = LargeWrite(file, eh, sizeof(EccHeader));
    if(n != sizeof(EccHeader))
-     Stop(_("Failed writing ecc header at %lld: %s\n"), lay->firstEccHeader, strerror(errno));
+     Stop(_("Failed writing ecc header at %" PRId64 ": %s\n"), lay->firstEccHeader, strerror(errno));
 
    hpos = (lay->protectedSectors + lay->headerModulo - 1) / lay->headerModulo;
    hpos *= lay->headerModulo;
@@ -575,11 +585,11 @@ void WriteRS02Headers(LargeFile *file, RS02Layout *lay, EccHeader *eh)
    while(hpos < end)
    { 
       if(!LargeSeek(file, 2048*hpos))
-	Stop(_("Failed seeking to ecc header at %lld: %s\n"), hpos, strerror(errno));
+	Stop(_("Failed seeking to ecc header at %" PRId64 ": %s\n"), hpos, strerror(errno));
 
       n = LargeWrite(file, eh, sizeof(EccHeader));
       if(n != sizeof(EccHeader))
-	Stop(_("Failed writing ecc header at %lld: %s\n"), hpos, strerror(errno));
+	Stop(_("Failed writing ecc header at %" PRId64 ": %s\n"), hpos, strerror(errno));
 
       hpos += lay->headerModulo;
    }
@@ -650,8 +660,8 @@ RS02Layout *RS02LayoutFromImage(Image *image)
 
    if(eh->sectorsAddedByEcc > 0) 
    {  expected_size = lay->dataSectors + eh->sectorsAddedByEcc;
-      Verbose("Expected size calculated from ecc header: %lld\n", 
-	      (long long int)expected_size);
+      Verbose("Expected size calculated from ecc header: %" PRId64 "\n", 
+	      expected_size);
 
       if(expected_size == lay->dataSectors+lay->eccSectors)
       {  Verbose("--> confirmed layout variant 1\n");
@@ -680,16 +690,16 @@ RS02Layout *RS02LayoutFromImage(Image *image)
 
    if(image->type == IMAGE_FILE)
    {  expected_size = image->file->size>>11;
-      Verbose("Expected size taken from image->file: %lld\n", 
-	      (long long int)expected_size);
+      Verbose("Expected size taken from image->file: %" PRId64 "\n", 
+	      expected_size);
    }
 
    if(image->type == IMAGE_MEDIUM)
    {  expected_size = image->dh->readCapacity+1;
       expected_size2 = image->dh->userAreaSize+1;
 
-      Verbose("Expected size taken from image->dh: %lld/%lld\n", 
-	      (long long int)expected_size, (long long int)expected_size2);
+      Verbose("Expected size taken from image->dh: %" PRId64 "/%" PRId64 "\n", 
+	      expected_size, expected_size2);
    }
 
    if(   lay->eccSectors+lay->dataSectors != expected_size
@@ -729,16 +739,15 @@ RS02Layout *RS02LayoutFromImage(Image *image)
 	 if(!(s%lay2->headerModulo))  /* we want the smaller modulos "between" the larger ones */
 	   s += lay->headerModulo;
 
-	 Verbose("Probing from %lld to %lld, modulos %lld, %lld\n",
-	 	 (long long int)s, (long long int)max_size,
-		 (long long int)lay->headerModulo, (long long int)lay2->headerModulo);
+	 Verbose("Probing from %" PRId64 " to %" PRId64 ", modulos %" PRId64 ", %" PRId64 "\n",
+	 	 s, max_size, lay->headerModulo, lay2->headerModulo);
 
 	 /* Probe headers at the smaller modulo. */
 
 	 while(s <= max_size)
 	 {
 	    if(ImageReadSectors(image, ab->buf, s, 2) != 2)
-	    {  Verbose("... sector %lld not present\n", (long long int)s);
+	    {  Verbose("... sector %" PRId64 " not present\n", s);
 	    }
 	    else
 	    {  
@@ -746,15 +755,15 @@ RS02Layout *RS02LayoutFromImage(Image *image)
 	      SwapEccHeaderBytes((EccHeader*)ab->buf);
 #endif
 	      if(!memcmp(eh, (EccHeader*)ab->buf, sizeof(EccHeader)))
-	       {  Verbose("... sector %lld is a header -> choosing modulo %lld\n",
-			  (long long int)s, (long long int)lay->headerModulo);
+	       {  Verbose("... sector %" PRId64 " is a header -> choosing modulo %" PRId64 "\n",
+			  s, lay->headerModulo);
 		  modulo_decided=TRUE;
 		  break;
 	       }
 	       else /* rewriteable media might contain garbage behind the actual image */
 	       {  if(s <= expected_size2)
-		  {  Verbose("... sector %lld is NOT a header -> choosing modulo %lld\n",
-			  (long long int)s, (long long int)lay2->headerModulo);
+		  {  Verbose("... sector %" PRId64 " is NOT a header -> choosing modulo %" PRId64 "\n",
+			     s, lay2->headerModulo);
 		     memcpy(lay, lay2, sizeof(RS02Layout));
 		     modulo_decided=TRUE;
 		     break;
@@ -776,18 +785,18 @@ RS02Layout *RS02LayoutFromImage(Image *image)
  finish:
    Verbose("Calculated layout for RS02 image:\n");
 
-   Verbose("data sectors      = %lld\n", lay->dataSectors);
-   Verbose("crc sectors       = %lld\n", lay->crcSectors);
-   Verbose("protected sectors = %lld (incl. 2 hdr sectors)\n", lay->protectedSectors);
-   Verbose("reed solomon secs = %lld (%d roots, %d data)\n", lay->rsSectors,lay->nroots,lay->ndata);
-   Verbose("header repeats    = %lld (using modulo %lld)\n", lay->headers, lay->headerModulo);
-   Verbose("added sectors     = %lld\n", lay->eccSectors);
-   Verbose("total image size  = %lld\n", lay->eccSectors+lay->dataSectors);
+   Verbose("data sectors      = %" PRId64 "\n", lay->dataSectors);
+   Verbose("crc sectors       = %" PRId64 "\n", lay->crcSectors);
+   Verbose("protected sectors = %" PRId64 " (incl. 2 hdr sectors)\n", lay->protectedSectors);
+   Verbose("reed solomon secs = %" PRId64 " (%d roots, %d data)\n", lay->rsSectors,lay->nroots,lay->ndata);
+   Verbose("header repeats    = %" PRId64 " (using modulo %" PRId64 ")\n", lay->headers, lay->headerModulo);
+   Verbose("added sectors     = %" PRId64 "\n", lay->eccSectors);
+   Verbose("total image size  = %" PRId64 "\n", lay->eccSectors+lay->dataSectors);
    Verbose("medium capacity   = n.a.\n");
 
    Verbose("\nInterleaving layout:\n");
-   Verbose("%lld sectors per ecc layer\n",lay->sectorsPerLayer);
-   Verbose("first layer sector with CRC data %lld (sector# %lld)\n",
+   Verbose("%" PRId64 " sectors per ecc layer\n",lay->sectorsPerLayer);
+   Verbose("first layer sector with CRC data %" PRId64 " (sector# %" PRId64 ")\n",
 	   lay->firstCrcLayerIndex, lay->dataSectors+2);
    Verbose("\n");
 

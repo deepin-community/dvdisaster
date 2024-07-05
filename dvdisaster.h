@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -40,12 +40,16 @@
 
 #include <glib.h>
 #include <glib/gprintf.h>
-#include <gtk/gtk.h>
-
+#ifdef WITH_GUI_YES
+  #include <gtk/gtk.h>
+#else
+  #include <glib-object.h>
+#endif
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <inttypes.h> /* PRId64 et. al */
 #ifdef WITH_NLS_YES
  #include <libintl.h>
  #include <locale.h>
@@ -66,12 +70,61 @@
  #error "need multithreading glib2"
 #endif
 
+#ifdef WITH_GUI_NO
+/* define some symbols normally coming from gtk and helper libs */
+
+#define GTK_MESSAGE_QUESTION 0
+#define GTK_MESSAGE_WARNING 0
+#define GTK_MESSAGE_ERROR 0
+#define GTK_BUTTONS_OK 0
+#define GTK_BUTTONS_OK_CANCEL 0
+#define GTK_BUTTONS_NONE 0
+
+typedef int  GtkButtonsType;
+typedef void GtkDialog;
+typedef void GtkLabel;
+typedef void GtkNotebook;
+typedef int  GtkMessageType;
+typedef void GtkScrolledWindow;
+typedef void GtkTextBuffer;
+typedef void GtkTooltips;
+typedef void GtkWidget;
+typedef void GtkWindow;
+
+typedef void GdkColor;
+typedef void GdkDrawable;
+typedef void GdkGC;
+typedef void GdkPixbuf;
+
+typedef void PangoLayout;
+#endif
+
+/* under MinGW, __attribute__ format printf doesn't work and outputs warnings for %lld,
+ * even if it's supported and doesn't output any warning under -Wformat when directly
+ * used with the real printf() func. However 'gnu_printf' works, see
+ * https://github.com/ocornut/imgui/issues/3592
+ */
+#ifdef __MINGW32__ /* defined under 32 and 64 bits mingw */
+# define PRINTF_FLAVOR gnu_printf
+#else
+# define PRINTF_FLAVOR printf
+#endif
+#define PRINTF_FORMAT2(ARG1,ARG2) __attribute__((format(PRINTF_FLAVOR, ARG1, ARG2)))
+#define PRINTF_FORMAT(ARG) PRINTF_FORMAT2(ARG,ARG+1)
+
 /* Phrase extraction for gettext() 
    Note that these functions are even required when
    WITH_NLS_NO is set! */
 
-#define _(string) sgettext(string)
-#define _utf(string) sgettext_utf8(string)
+#ifndef WITH_DEBUG_PRINTF_FORMAT_YES
+ #define _(string) sgettext(string)
+ #define _utf(string) sgettext_utf8(string)
+#else
+/* disable sgettext() calls so that the compiler
+   can analyze printf format strings */
+ #define _(string) string
+ #define _utf(string) string
+#endif
 
 /* File permissions for images */
 
@@ -85,11 +138,22 @@
 
 /* Some standard media sizes */
 
+/* WARNING: These values affect RS03 in non-obvious ways.
+ * If you create RS03 data with changed values, you MUST
+ * keep a dvdisaster version with the changed values for
+ * recovering images with that RS03 data. 
+ * dvdisaster compiled with default values may appear to 
+ * scan and verify such images correctly as long as they 
+ * are not damaged. But recovery WILL BREAK when 
+ * processing a damaged image. YOU HAVE BEEN WARNED. 
+ */
+
 #define CDR_SIZE         (351*1024)
-#define DVD_SL_SIZE      2295104  /* DVD+R/RW size used at least common denominator */
+#define DVD_SL_SIZE      2295104  /* DVD+R/RW size used as least common denominator */
 #define DVD_DL_SIZE 	 4171712  /* also seen: 4148992 4173824  */
 #define BD_SL_SIZE      11826176
 #define BD_DL_SIZE	23652352
+#define BDXL_TL_SIZE    47305728
 
 /* Maximum accepted media sizes (in 2K sectors) */
 
@@ -101,7 +165,7 @@
 
 #define MAX_CODEC_THREADS 1024           /* not including IO and GUI */
 #define MAX_OLD_CACHE_SIZE  8096         /* old cache for RS01/RS02  */
-#define MAX_PREFETCH_CACHE_SIZE (512*1024)   /* upto 0.5TB RS03  */
+#define MAX_PREFETCH_CACHE_SIZE (512*1024)   /* up to 0.5TB RS03  */
 
 /* Choices for I/O strategy */
 
@@ -131,6 +195,7 @@
 typedef struct _GlobalClosure
 {  int version;         /* Integer number representing current program version */
    char *cookedVersion; /* version string formatted for GUI use */
+   gint8 releaseFlags;  /* flags marking release status */
    char *versionString; /* more detailed version string */
    char *device;        /* currently selected device to read from */
    GPtrArray *deviceNames;  /* List of drive names */
@@ -144,13 +209,15 @@ typedef struct _GlobalClosure
    gint64 cdSize;       /* Maximum cd size (for RS02 type images) */
    gint64 dvdSize1;     /* Maximum 1-layer dvd size (for augmented images) */
    gint64 dvdSize2;     /* Maximum 2-layer dvd size (for augmented images) */
-   gint64 bdSize1;      /* Maximum 1-layer dvd size (for augmented images) */
-   gint64 bdSize2;      /* Maximum 2-layer dvd size (for augmented images) */
+   gint64 bdSize1;      /* Maximum 1-layer bd size (for augmented images) */
+   gint64 bdSize2;      /* Maximum 2-layer bd size (for augmented images) */
+   gint64 bdSize3;      /* Maximum 3-layer bdxl size (for augmented images) */
    gint64 savedCDSize;  /* Undo values for above */
    gint64 savedDVDSize1;
    gint64 savedDVDSize2;
    gint64 savedBDSize1;
    gint64 savedBDSize2;
+   gint64 savedBDSize3;
    gint64 mediumSize;   /* Maximum medium size (for augmented images) */
    int cacheMiB;        /* Cache setting for the parity codec, in megabytes */
    int prefetchSectors; /* Prefetch setting per encoder thread */
@@ -171,11 +238,13 @@ typedef struct _GlobalClosure
    int spinupDelay;     /* Seconds to wait for drive to spin up */
    int truncate;        /* confirms truncation of large images */
    int noTruncate;      /* do not truncate image at the end */
+   int noProgress;      /* do not print the percentage progress indicator */
    int dsmVersion;      /* 1 means new style dead sector marker */
    int unlinkImage;     /* delete image after ecc file creation */
    int confirmDeletion; /* do not ask whether files should be deleted */
    int driveSpeed;      /* currently unused */
    int debugMode;       /* may activate additional features */
+   int regtestMode;     /* tweaks output for compatibility with regtests */
    int debugCDump;      /* dump as #include file instead of hexdump */
    int verbose;         /* may activate additional messages */
    int quickVerify;     /* do only non time-consuming verify actions */
@@ -212,7 +281,6 @@ typedef struct _GlobalClosure
    int  logFileStamped; /* time stamp written to log file */
    char *binDir;        /* place where the binary resides */
    char *docDir;        /* place where our documentation resides */
-   char *viewer;        /* Name of preferred PDF viewer */
 
    GMutex progressLock; /* A mutex protected the stuff below */
    char bs[256];        /* A string of 255 backspace characters */
@@ -226,11 +294,8 @@ typedef struct _GlobalClosure
    char *errorTitle;    /* Title to show in error dialogs */
    gint32 randomSeed;   /* for the random number generator */
 
-   guint32 *crcCache;              /* sectorwise CRC32 for last image read */
-   char    *crcImageName;          /* file name of cached image */
-   unsigned char md5Cache[16];     /* md5sum of last image read */
+   struct _CrcBuf *crcBuf;      /* crcBuf of last image read */
    
-
    /*** GUI-related things */
 
    int guiMode;              /* TRUE if GUI is active */
@@ -261,7 +326,7 @@ typedef struct _GlobalClosure
    GtkWidget *eccEntry;      /* ecc name entry field */
    
    GtkWidget *notebook;      /* The notebook behind our central output area */
-   GtkLabel  *status;        /* The status label */
+   GtkWidget *status;        /* The status label */
 
    GtkWidget *prefsButton;
    GtkWidget *helpButton;
@@ -318,7 +383,6 @@ typedef struct _GlobalClosure
    GtkWidget *readLinearFootline;
    GtkWidget *readLinearFootlineBox;
    gint64 crcErrors, readErrors;  /* these are passed between threads and must therefore be global */
-   int    crcAvailable;           /* true when CRC data is available while reading/scanning */
 
    /*** Widgets for the adaptive reading action */
 
@@ -364,7 +428,7 @@ typedef struct _LargeFile
 #define FINGERPRINT_SECTOR 16 /* Sector currently used to calculate the fingerprint. */
                               /* This is the ISO filesystem root sector which contains */
                               /* the volume label and creation time stamps. */
-                              /* Versions upto 0.64 used sector 257, */
+                              /* Versions up to 0.64 used sector 257, */
                               /* but that was not a wise choice for CD media.*/
 
 #define MFLAG_DEVEL (1<<0)    /* for methodFlags[3] */
@@ -425,9 +489,10 @@ typedef struct _CrcBlock
  *** forward declarations
  ***/
 
-struct _RawBuffer *rawbuffer_forward;
-struct _DefectiveSectorHeader *dsh_forward;
-struct _DeviceHandle *dh_forward;
+extern struct _RawBuffer *rawbuffer_forward;
+extern struct _DefectiveSectorHeader *dsh_forward;
+extern struct _DeviceHandle *dh_forward;
+extern struct _Image *dh_image;
 
 /***
  *** bitmap.c
@@ -443,14 +508,14 @@ Bitmap* CreateBitmap0(int);
 #define GetBit(bm,bit) (bm->bitmap[(bit)>>5] & (1<<((bit)&31))) 
 #define SetBit(bm,bit) bm->bitmap[(bit)>>5] |= (1<<((bit)&31)) 
 #define ClearBit(bm,bit) bm->bitmap[(bit)>>5] &= ~(1<<((bit)&31)) 
-int CountBits(Bitmap*);
+gint32 CountBits(Bitmap*);
 void FreeBitmap(Bitmap*);
 
 /***
  *** build.h
  ***/
 
-int buildCount;
+extern int buildCount;
 
 /***
  *** cacheprobe.h
@@ -464,13 +529,15 @@ int ProbeCacheLineSize();
 
 void InitClosure(void);
 void LocalizedFileDefaults(void);
-void UpdateMarkup(char**, GdkColor*);
-void DefaultColors(void);
-void ClearCrcCache(void);
 void FreeClosure(void);
-void ReadDotfile(void);
 void WriteSignature(void);
 int  VerifySignature(void);
+
+#ifdef WITH_GUI_YES
+void GuiDefaultColors(void);
+void GuiReadDotfile(void);
+void GuiUpdateMarkup(char**, GdkColor*);
+#endif
 
 /***
  *** crc32.c
@@ -483,10 +550,36 @@ guint32 EDCCrc32(unsigned char*, int);
  *** crcbuf.c
  ***/
 
+/* Flags for CrcBuf->md5State */
+
+#define MD5_INVALID 0
+#define MD5_BUILDING (1<<0)
+#define MD5_DATA_COMPLETE (1<<1)
+#define MD5_IMAGE_COMPLETE (1<<2)
+#define MD5_COMPLETE (MD5_DATA_COMPLETE | MD5_IMAGE_COMPLETE)
+
 typedef struct _CrcBuf
-{  guint32 *crcbuf;
-   guint64 size;
+{  /* CRC32 of image sectors */
+   guint32 *crcbuf;
+   guint64 crcSize;
    Bitmap *valid;
+   gint32 crcCached;            /* CRC has been retrieved from ECC or previous run */
+  
+   /* MD5 sum of image sectors */
+   struct MD5Context *md5Ctxt;  /* context for building the image MD5 sum */
+   int md5State;                /* state of md5 sum */    
+   guint64 lastSector;          /* tracking of sector sequence */
+   unsigned char dataMD5sum[16];   /* md5sum of data portion from last image read */
+   unsigned char imageMD5sum[16];  /* md5sum of last image read */
+
+   /* Characteristics of image */
+   char *imageName;             /* file name of cached image */
+   guint64 dataSectors;         /* number of data sectors (minus ecc sectors) */ 
+   guint64 coveredSectors;      /* sectors covered by crc (EH, padding, ...) */ 
+   guint64 allSectors;          /* number of all image sectors */
+   guint8 mediumFP[16];         /* fingerprint of image */ 
+   gint32 fpSector;             /* sector which was fingerprinted */
+   gint32 fpValid;
 } CrcBuf;
 
 enum
@@ -496,10 +589,26 @@ enum
    CRC_OUTSIDE_BOUND
 };
 
-CrcBuf *CreateCrcBuf(guint64);
+/* Modes for AddSectorToCrcBuffer */
+
+#define CRCBUF_UPDATE_CRC 1<<0
+#define CRCBUF_UPDATE_MD5 1<<1
+#define CRCBUF_UPDATE_ALL 3
+#define CRCBUF_UPDATE_CRC_AFTER_DATA 1<<2
+
+/* Modes for CtcBufValid */
+
+#define FULL_IMAGE 0
+#define DATA_SECTORS_ONLY 1
+
+CrcBuf *CreateCrcBuf(struct _Image*);
 void FreeCrcBuf(CrcBuf*);
 
 int CheckAgainstCrcBuffer(CrcBuf*, gint64, unsigned char*);
+int AddSectorToCrcBuffer(CrcBuf*, int, guint64, unsigned char*, int);
+int CrcBufValid(CrcBuf*, struct _Image*, int);
+
+void PrintCrcBuf(CrcBuf*);
 
 /***
  *** curve.c
@@ -533,17 +642,20 @@ typedef struct _Curve
 #define DRAW_FCURVE (1<<1)
 #define DRAW_LCURVE (1<<2)
 
-Curve* CreateCurve(GtkWidget*, char*, char*, int, int);
-void ZeroCurve(Curve*);
-void FreeCurve(Curve*);
+#ifdef WITH_GUI_YES
+Curve* GuiCreateCurve(GtkWidget*, char*, char*, int, int);
+void GuiZeroCurve(Curve*);
+void GuiFreeCurve(Curve*);
 
-void UpdateCurveGeometry(Curve*, char*, int);
+void GuiUpdateCurveGeometry(Curve*, char*, int);
 
-int  CurveX(Curve*, gdouble);
-int  CurveY(Curve*, gdouble);
-int  CurveLogY(Curve*, gdouble);
-void RedrawAxes(Curve*);
-void RedrawCurve(Curve*, int);
+int  GuiCurveX(Curve*, gdouble);
+int  GuiCurveY(Curve*, gdouble);
+int  GuiCurveLogY(Curve*, gdouble);
+
+void GuiRedrawAxes(Curve*);
+void GuiRedrawCurve(Curve*, int);
+#endif
 
 /***
  *** debug.c
@@ -551,7 +663,7 @@ void RedrawCurve(Curve*, int);
 
 void HexDump(unsigned char*, int, int);
 void LaTeXify(gint32*, int, int);
-void AppendToTextFile(char*,char*, ...);
+void AppendToTextFile(char*,char*, ...) PRINTF_FORMAT(2);
 void CopySector(char*);
 void Byteset(char*);
 void Erase(char*);
@@ -689,25 +801,27 @@ typedef struct _LabelWithOnlineHelp
    int outerPadding;   /* Padding between window and outer vbox */
 } LabelWithOnlineHelp;
 
-LabelWithOnlineHelp* CreateLabelWithOnlineHelp(char*, char*);
-LabelWithOnlineHelp* CloneLabelWithOnlineHelp(LabelWithOnlineHelp*, char*);
-void FreeLabelWithOnlineHelp(LabelWithOnlineHelp*);
-void SetOnlineHelpLinkText(LabelWithOnlineHelp*, char*);
-void AddHelpListItem(LabelWithOnlineHelp*, char*, ...);
-void AddHelpParagraph(LabelWithOnlineHelp*, char*, ...);
-void AddHelpWidget(LabelWithOnlineHelp*, GtkWidget*);
+#ifdef WITH_GUI_YES
+LabelWithOnlineHelp* GuiCreateLabelWithOnlineHelp(char*, char*);
+LabelWithOnlineHelp* GuiCloneLabelWithOnlineHelp(LabelWithOnlineHelp*, char*);
+void GuiFreeLabelWithOnlineHelp(LabelWithOnlineHelp*);
+void GuiSetOnlineHelpLinkText(LabelWithOnlineHelp*, char*);
+void GuiAddHelpListItem(LabelWithOnlineHelp*, char*, ...) PRINTF_FORMAT(2);
+void GuiAddHelpParagraph(LabelWithOnlineHelp*, char*, ...) PRINTF_FORMAT(2);
+void GuiAddHelpWidget(LabelWithOnlineHelp*, GtkWidget*);
 
 /* Specific online help dialogs */
 
-GtkWidget* ShowTextfile(char*, char*, char*, GtkScrolledWindow**, GtkTextBuffer**);
-void ShowGPL();
-void ShowLog();
-void UpdateLog();
-void AboutDialog();
+GtkWidget* GuiShowTextfile(char*, char*, char*, GtkScrolledWindow**, GtkTextBuffer**);
+void GuiShowGPL();
+void GuiShowLog();
+void GuiUpdateLog();
+void GuiAboutDialog();
 
-void AboutText(GtkWidget*, char*, ...);
-void AboutLink(GtkWidget*, char*, char*);
-void AboutTextWithLink(GtkWidget*, char*, char*);
+void GuiAboutText(GtkWidget*, char*, ...) PRINTF_FORMAT(2);
+void GuiAboutLink(GtkWidget*, char*, char*);
+void GuiAboutTextWithLink(GtkWidget*, char*, char*);
+#endif
 
 /***
  *** heuristic-lec.c
@@ -726,7 +840,9 @@ int AckHeuristic(struct _RawBuffer*);
  *** icon-factory.c
  ***/
 
-void CreateIconFactory();
+#ifdef WITH_GUI_YES
+void GuiCreateIconFactory();
+#endif
 
 /***
  *** image.c
@@ -734,7 +850,7 @@ void CreateIconFactory();
 
 enum {IMAGE_NONE, IMAGE_FILE, IMAGE_MEDIUM};
 enum {FP_UNKNOWN, FP_UNREADABLE, FP_PRESENT};
-enum {ECCFILE_PRESENT, ECCFILE_MISSING, ECCFILE_INVALID, ECCFILE_DEFECTIVE_HEADER, ECCFILE_WRONG_CODEC};
+enum {ECCFILE_PRESENT, ECCFILE_NOPERM, ECCFILE_MISSING, ECCFILE_INVALID, ECCFILE_DEFECTIVE_HEADER, ECCFILE_WRONG_CODEC};
 
 typedef struct _Image
 {  int type;                   /* file or medium */
@@ -768,11 +884,12 @@ typedef struct _Image
    int fpState;               /* 0=unknown; 1=unreadable; 2=present */
 
   /*
-   * layout caching
+   * layout and checksum caching
    */
 
    void *cachedLayout;        /* Layout of different codecs */
-
+   CrcBuf *crcCache;          /* cached crc and md5 sums */
+  
    /*
     * optionally attached ecc file
     */
@@ -854,7 +971,7 @@ int CountC2Errors(unsigned char*);
 
 void DefaultLogFile();
 void VPrintLogFile(char*, va_list);
-void PrintLogFile(char*, ...);
+void PrintLogFile(char*, ...) PRINTF_FORMAT(1);
 
 /***
  *** maintenance.c
@@ -884,15 +1001,20 @@ typedef enum
    ACTION_FIX        
 } MajorActions;
 
-void CreateMainWindow(int*, char***);
-void ContinueWithAction(int);
+#ifdef WITH_GUI_YES
+void GuiCreateMainWindow(int*, char***);
+void GuiContinueWithAction(int);
+#endif
 
 /***
  *** medium-info.c
  ***/
 
-void CreateMediumInfoWindow(void);
 void PrintMediumInfo(void*);
+
+#ifdef WITH_GUI_YES
+void GuiCreateMediumInfoWindow(void);
+#endif
 
 /***
  *** memtrack.c
@@ -933,7 +1055,7 @@ void*	malloc_ext(int,char*,int);
 void*	realloc_ext(void*, int, char*, int);
 void*	try_malloc_ext(int,char*,int);
 char*	strdup_ext(const char*,char*,int);
-char*	strdup_printf_ext(char*, char*, int, ...);
+char*	strdup_printf_ext(char*, char*, int, ...) PRINTF_FORMAT2(1,4);
 char*	strdup_vprintf_ext(char*, va_list, char*, int);
 gchar*  g_locale_to_utf8_ext(const gchar*, gssize, gsize*, gsize*, GError**, char*, int);
 void	free_ext(void*,char*,int);
@@ -947,9 +1069,11 @@ void    check_memleaks(void);
  *** menubar.c
  ***/
 
-void AttachTooltip(GtkWidget*, char*, char*);
-GtkWidget* CreateMenuBar(GtkWidget*);
-GtkWidget* CreateToolBar(GtkWidget*);
+#ifdef WITH_GUI_YES
+void GuiAttachTooltip(GtkWidget*, char*, char*);
+GtkWidget* GuiCreateMenuBar(GtkWidget*);
+GtkWidget* GuiCreateToolBar(GtkWidget*);
+#endif
 
 /***
  *** method.c / method-link.c
@@ -1011,58 +1135,78 @@ void gint64_to_uchar(unsigned char*, gint64);
 
 void CalcSectors(guint64, guint64*, int*);
 
-void PrintCLI(char*, ...);
-void PrintLog(char*, ...);
-void PrintLogWithAsterisks(char*, ...);
-void Verbose(char*, ...);
-void PrintTimeToLog(GTimer*, char*, ...);
-void PrintProgress(char*, ...);
+void PrintCLI(char*, ...) PRINTF_FORMAT(1);
+void PrintLog(char*, ...) PRINTF_FORMAT(1);
+void PrintLogWithAsterisks(char*, ...) PRINTF_FORMAT(1);
+void Verbose(char*, ...) PRINTF_FORMAT(1);
+void PrintTimeToLog(GTimer*, char*, ...) PRINTF_FORMAT(2);
+void PrintProgress(char*, ...) PRINTF_FORMAT(1);
 void ClearProgress(void);
-void PrintCLIorLabel(GtkLabel*, char*, ...);
+void PrintCLIorLabel(GtkWidget*, char*, ...) PRINTF_FORMAT(2);
 int GetLongestTranslation(char*, ...);
+void vLogWarning(char*, va_list);
 
-void LogWarning(char*, ...);
-void Stop(char*, ...);
+void LogWarning(char*, ...) PRINTF_FORMAT(1);
+void Stop(char*, ...) PRINTF_FORMAT(1);
 void RegisterCleanup(char*, void (*)(gpointer), gpointer);
 void UnregisterCleanup(void);
 
 GThread* CreateGThread(GThreadFunc, gpointer);
 
-void ShowWidget(GtkWidget*);
-void AllowActions(gboolean);
+/***
+ *** misc-gui.c 
+ ***/
 
-void ShowMessage(GtkWindow*, char*, GtkMessageType);
-GtkWidget* CreateMessage(char*, GtkMessageType, ...);
-void SetLabelText(GtkLabel*, char*, ...);
-void SetProgress(GtkWidget*, int, int);
+#ifdef WITH_GUI_YES
+void GuiAllowActions(gboolean);
+int GuiConfirmEccDeletion(char *);
+int GuiConfirmImageDeletion(char *);
+GtkWidget* GuiCreateMessage(char*, GtkMessageType, ...) PRINTF_FORMAT2(1,3);
+void GuiExitWorkerThread();
+int GuiGetLabelWidth(GtkLabel*, char*, ...) PRINTF_FORMAT(2);
+void GuiLockLabelSize(GtkWidget*, char*, ...) PRINTF_FORMAT(2);
+int GuiModalDialog(GtkMessageType, GtkButtonsType, void (*)(GtkDialog*), char*, ...) PRINTF_FORMAT(4);
+void GuiReverseCancelOK(GtkDialog*);
+void GuiSetLabelText(GtkWidget*, char*, ...) PRINTF_FORMAT(2);
+void GuiShowMessage(GtkWindow*, char*, GtkMessageType);
+void GuiSetProgress(GtkWidget*, int, int);
+void GuiSetText(PangoLayout*, char*, int*, int*);
+void GuiShowWidget(GtkWidget*);
+void GuiSwitchAndSetFootline(GtkWidget*, int, GtkWidget*, char*, ...) PRINTF_FORMAT(4);
+#else
+#define GuiAllowActions(g)
+#define GuiConfirmEccDeletion(c) (1)
+#define GuiConfirmImageDeletion(c) (1)
+#define GuiCreateMessage(a, b, args...)
+#define GuiExitWorkerThread()
+#define GuiGetLabelWidth(l, c, args...) (0)
+#define GuiLockLabelSize(w, c, args...)
+#define GuiModalDialog(a, b, c, d, args...) (0)
+#define GuiReverseCancelOK(d)
+#define GuiSetLabelText(w, c, args...)
+#define GuiShowMessage(w, a, b)
+#define GuiSetProgress(w, a, b)
+#define GuiSetText(p, a, b, c)
+#define GuiShowWidget(w)
+#define GuiSwitchAndSetFootline(w, a, b, c, args...)
+#endif
 
-int ModalDialog(GtkMessageType, GtkButtonsType, void (*)(GtkDialog*), char*, ...);
-int ModalWarning(GtkMessageType, GtkButtonsType, void (*)(GtkDialog*), char*, ...);
-
-void SetText(PangoLayout*, char*, int*, int*);
-void SwitchAndSetFootline(GtkWidget*, int, GtkWidget*, char*, ...);
-
-void ReverseCancelOK(GtkDialog*);
-void TimedInsensitive(GtkWidget*, int);
-
-int GetLabelWidth(GtkLabel*, char*, ...);
-void LockLabelSize(GtkLabel*, char*, ...);
-
-int ConfirmImageDeletion(char *);
-int ConfirmEccDeletion(char *);
+int ModalWarning(GtkMessageType, GtkButtonsType, void (*)(GtkDialog*), char*, ...) PRINTF_FORMAT(4);
 
 /***
  *** preferences.c
  ***/
 
-void CreatePreferencesWindow(void);
-void UpdateMethodPreferences(void);
-void HidePreferences(void);
-void FreePreferences(void*);
+#ifdef WITH_GUI_YES
+void GuiCreatePreferencesWindow(void);
+void GuiUpdateMethodPreferences(void);
+void GuiHidePreferences(void);
+void GuiFreePreferences(void*);
 
-void UpdatePrefsExhaustiveSearch(void);
-void UpdatePrefsConfirmDeletion(void);
-void RegisterPreferencesHelpWindow(LabelWithOnlineHelp*);
+void GuiUpdatePrefsExhaustiveSearch(void);
+void GuiUpdatePrefsConfirmDeletion(void);
+void GuiRegisterPreferencesHelpWindow(LabelWithOnlineHelp*);
+#endif
 
 /***
  *** print-sense.c
@@ -1087,9 +1231,8 @@ guint32 Random32(void);
  *** raw-editor.c
  ***/
 
-void CreateRawEditor(void);
-void FreeRawEditorContext(void*);
-
+void GuiCreateRawEditor(void);
+void GuiFreeRawEditorContext(void*);
 
 /***
  *** raw-sector-cache.c
@@ -1123,20 +1266,27 @@ void ReadMediumLinear(gpointer);
  *** read-linear-window.c
  ***/
 
-void ResetLinearReadWindow();
-void CreateLinearReadWindow(GtkWidget*);
+#ifdef WITH_GUI_YES
+void GuiInitializeCurve(void*, int, int);
+void GuiAddCurveValues(void*, int, int, int);
+void GuiMarkExistingSectors(void);
 
-void InitializeCurve(void*, int, int);
-void AddCurveValues(void*, int, int, int);
-void MarkExistingSectors(void);
-void RedrawReadLinearWindow(void);
+void GuiResetLinearReadWindow();
+void GuiRedrawReadLinearWindow(void);
+void GuiCreateLinearReadWindow(GtkWidget*);
+#else
+#define GuiInitializeCurve(a, b, c)
+#define GuiAddCurveValues(a, b, c, d)
+#define GuiMarkExistingSectors()
+
+#define GuiRedrawReadLinearWindow()
+#endif
 
 /*** 
  *** read-adaptive.c
  ***/
 
 void GetReadingRange(gint64, gint64*, gint64*);
-
 void ReadMediumAdaptive(gpointer);
 
 /***
@@ -1145,16 +1295,30 @@ void ReadMediumAdaptive(gpointer);
 
 #define ADAPTIVE_READ_SPIRAL_SIZE 4800
 
-void ResetAdaptiveReadWindow();
-void SetAdaptiveReadMinimumPercentage(int);
-void CreateAdaptiveReadWindow(GtkWidget*);
+#ifdef WITH_GUI_YES
+void GuiClipReadAdaptiveSpiral(int);
+void GuiChangeSegmentColor(GdkColor*, int);
+void GuiRemoveFillMarkers();
 
-void ClipReadAdaptiveSpiral(int);
-void SetAdaptiveReadSubtitle(char*);
-void SetAdaptiveReadFootline(char*, GdkColor*);
-void UpdateAdaptiveResults(gint64, gint64, gint64, int);
-void ChangeSegmentColor(GdkColor*, int);
-void RemoveFillMarkers();
+void GuiSetAdaptiveReadSubtitle(char*);
+void GuiSetAdaptiveReadFootline(char*, GdkColor*);
+void GuiSetAdaptiveReadMinimumPercentage(int);
+void GuiUpdateAdaptiveResults(gint64, gint64, gint64, int);
+
+void GuiResetAdaptiveReadWindow();
+#else
+#define GuiClipReadAdaptiveSpiral(i)
+#define GuiChangeSegmentColor(g, i)
+#define GuiRemoveFillMarkers()
+
+#define GuiSetAdaptiveReadSubtitle(c)
+#define GuiSetAdaptiveReadFootline(c, d)
+#define GuiSetAdaptiveReadMinimumPercentage(i)
+#define GuiUpdateAdaptiveResults(a, b, c, d)
+#endif
+
+void GuiCreateAdaptiveReadWindow(GtkWidget*);
+
 
 /***
  *** recover-raw.c
@@ -1296,7 +1460,7 @@ int ProbeAltiVec(void);
  *** show-manual.c
  ***/
 
-void ShowPDF(char*);
+void GuiShowURL(char*);
 
 /***
  *** smart-lec.c
@@ -1331,21 +1495,26 @@ typedef struct _Spiral
    GdkColor *colorUnderCursor;
 } Spiral;
 
-Spiral* CreateSpiral(GdkColor*, GdkColor*, int, int, int);
-void SetSpiralWidget(Spiral*, GtkWidget*);
-void FillSpiral(Spiral*, GdkColor*);
-void FreeSpiral(Spiral*);
-void DrawSpiral(Spiral*);
-void DrawSpiralSegment(Spiral*, GdkColor*, int);
-void DrawSpiralLabel(Spiral*, PangoLayout*, char*, GdkColor*, int, int);
+#ifdef WITH_GUI_YES
+Spiral* GuiCreateSpiral(GdkColor*, GdkColor*, int, int, int);
+void GuiSetSpiralWidget(Spiral*, GtkWidget*);
+void GuiFreeSpiral(Spiral*);
 
-void ChangeSpiralCursor(Spiral*, int);
-void MoveSpiralCursor(Spiral*, int);
+void GuiFillSpiral(Spiral*, GdkColor*);
+void GuiDrawSpiral(Spiral*);
+void GuiDrawSpiralSegment(Spiral*, GdkColor*, int);
+void GuiDrawSpiralLabel(Spiral*, PangoLayout*, char*, GdkColor*, int, int);
+void GuiChangeSpiralCursor(Spiral*, int);
+void GuiMoveSpiralCursor(Spiral*, int);
+#else
+#define GuiChangeSpiralCursor(a, b)
+#define GuiFreeSpiral(s)
+#endif
 
 /***
  *** welcome-window.c
  ***/
 
-void CreateWelcomePage(GtkNotebook*);
+void GuiCreateWelcomePage(GtkNotebook*);
 
-#endif				/* DVDISASTER_H */
+#endif	/* DVDISASTER_H */
