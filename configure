@@ -1,13 +1,32 @@
 #!/usr/bin/env bash
 
+#  dvdisaster: Additional error correction for optical media.
+#  Copyright (C) 2004-2018 Carsten Gnoerlich.
+#  Copyright (C) 2019-2021 The dvdisaster development team.
+#
+#  Email: support@dvdisaster.org
+#
+#  This file is part of dvdisaster.
+#
+#  dvdisaster is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  dvdisaster is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
+
 # Load the shell functions needed for the rest of this script.
 
 BASH_BASED_CONFIGURE=./scripts/bash-based-configure
 REQUIRED_CFLAGS="-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -I." 
-RECOMMENDED_CFLAGS="-O2 -fomit-frame-pointer -Wall"
+RECOMMENDED_CFLAGS="-O2 -fomit-frame-pointer -Wall -Wno-deprecated-declarations -Wno-format-zero-length"
 DEBUG_CFLAGS="-ggdb -Wall"
-
-CFG_USE_CYGWIN="no"   # do not change
 
 if test -e $BASH_BASED_CONFIGURE; then
    source $BASH_BASED_CONFIGURE
@@ -19,7 +38,8 @@ fi
 
 # Set the package name and version
 
-PACKAGE dvdisaster 0.79.5
+PACKAGE dvdisaster 0.79.10
+CFG_HAVE_OPTIONS="$CFG_HAVE_OPTIONS -DHAVE_UNSTABLE_RELEASE"
 
 # Check for some essential tools.
 
@@ -46,7 +66,12 @@ GET_BUILDTMP
 PRINT_MESSAGE "\nLooking for includes and libraries:"
 
 REQUIRE_GLIB2 2 32 0
-REQUIRE_GTK2 2 6 0 WITH_THREADS
+echo
+
+WITH_OPTION gui yes "[yes | no]"
+if test "$cfg_with_gui" == "yes"; then
+  REQUIRE_GTK2 2 6 0 WITH_THREADS
+fi
 echo
 
 if ! CHECK_INCLUDE locale.h locale || ! CHECK_INCLUDE libintl.h intl ; then
@@ -108,10 +133,12 @@ if ! EXECUTE_PROGRAM "xgettext --help" xgettext \
   cfg_force_with_nls=no
 fi
 
-if ! EXECUTE_PROGRAM "gdk-pixbuf-csource --help" gdk_pixbuf_csource ; then
-  echo "* gdk-pixbuf not installed"
-  echo "* or path to gdk-pixbuf-csource is missing."
-  exit 1
+if test "$cfg_with_gui" == "yes"; then
+  if ! EXECUTE_PROGRAM "gdk-pixbuf-csource --help" gdk_pixbuf_csource ; then
+    echo "* gdk-pixbuf not installed"
+    echo "* or path to gdk-pixbuf-csource is missing."
+    exit 1
+  fi
 fi
 
 # Evaluate the --with* customization options
@@ -124,7 +151,24 @@ WITH_OPTION embedded-src-path yes "[yes | no]"
 PRINT_MESSAGE "\nDebugging options (do not use in production system):"
 
 WITH_OPTION memdebug no "[no | yes]"
-WITH_OPTION efence no "[no | yes]"
+WITH_OPTION debug-printf-format no "[no | yes]"
+WITH_OPTION werror no "[no | yes]"
+
+if test "$cfg_with_debug_printf_format" == "yes"; then
+  # don't use the binary compiled with this,
+  # it's only useful to properly get all the build-time
+  # warnings around printf-errors, that are otherwise
+  # not catched by the compiler because of the _() macro
+  DEFINE_STRING DEBUG_PRINTF_FORMAT 1
+else
+  # warnings given by -Wformat-security are bogus because of _(),
+  # see above comment if you actually want to check for format errors
+  CFG_CFLAGS="$CFG_CFLAGS -Wno-format-security"
+fi
+
+if test "$cfg_with_werror" == "yes"; then
+  CFG_CFLAGS="$CFG_CFLAGS -Werror"
+fi
 
 if test "$cfg_with_efence" == "yes"; then
   if ! CHECK_LIBRARY efence malloc efence; then

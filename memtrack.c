@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #define _GNU_SOURCE
 
@@ -85,7 +87,7 @@ void remember(void *ptr, int size, char *file, int line)
 
    g_mutex_lock(&phMutex);
 
-   hash_idx = (((long)ptr)>>3)&63;
+   hash_idx = (((long long)ptr)>>3)&63;
    if(phCnt[hash_idx] >= phMax[hash_idx])
    {  if(!phMax[hash_idx]) phMax[hash_idx] = 16;
       else                 phMax[hash_idx] *= 2;

@@ -1,3 +1,24 @@
+#  dvdisaster: Additional error correction for optical media.
+#  Copyright (C) 2004-2018 Carsten Gnoerlich.
+#  Copyright (C) 2019-2021 The dvdisaster development team.
+#
+#  Email: support@dvdisaster.org
+#
+#  This file is part of dvdisaster.
+#
+#  dvdisaster is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  dvdisaster is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
+
 Installation of the dvdisaster source code distribution
 =======================================================
 [don't edit - generated from documentation/install.template]
@@ -111,11 +132,11 @@ Please change into a directory which is writeable
 for you and unpack the source code archive:
 
 user@host> cd /var/tmp
-user@host> tar xjf dvdisaster-0.79.5.tar.bz2
+user@host> tar xjf dvdisaster-0.79.6.tar.bz2
 
 Then change into the newly created directory:
 
-user@host> cd /var/tmp/dvdisaster-0.79.5
+user@host> cd /var/tmp/dvdisaster-0.79.6
 
 3.2. Configuring the package
 ----------------------------
@@ -199,8 +220,7 @@ please remove the directory you have created as described
 in section 3.1:
 
 user@host> cd /var/tmp
-user@host> rm -rf dvdisaster-0.79.5
-
+user@host> rm -rf dvdisaster-0.79.6
 
 5. Running the program
 ======================
@@ -228,16 +248,7 @@ Use camcontrol to find out which passthrough device
 is assigned to your drive:
 
 root@freebsd# camcontrol devlist
-<NAME OF YOUR DRIVE>  at scbus1 target 0 lun 0 (pass1,cd0)
-
-You can change permission permanently by adding the
-following line to /etc/devfs.conf:
-
-perm pass1 0660
-
-To make the change available immediately, restart devfs:
-
-root@freebsd# /etc/rc.d/devfs restart
+<NAME OF YOUR DRIVE>  at scbus1 target 0 lun 0 (pass0,cd0)
 
 
 Avoid copy-on-write filesystems

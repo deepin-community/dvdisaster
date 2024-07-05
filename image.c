@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 #include "scsi-layer.h"
@@ -99,13 +101,15 @@ Image* OpenEccFileForImage(Image *image, char *filename, int flags, mode_t mode)
    }
 
    image->eccFile = LargeOpen(filename, flags, mode);
+   if(errno == EACCES)
+        image->eccFileState = ECCFILE_NOPERM;
+   else image->eccFileState = ECCFILE_MISSING;
    
    if(!image->eccFile)
    {  if(new_image) 
       {  g_free(image);
-         return NULL;
+	 return NULL;
       }
-      image->eccFileState = ECCFILE_MISSING;
       return image;
    }
 
@@ -146,11 +150,14 @@ int ReportImageEccInconsistencies(Image *image)
 
   if(!image || image->type == IMAGE_NONE)
   {  if(image) CloseImage(image);
+
+#ifdef WITH_GUI_YES
      if(Closure->guiMode)
-     {     CreateMessage(_("Image file %s not present or permission denied.\n"), GTK_MESSAGE_ERROR, Closure->imageName);
+     {     GuiCreateMessage(_("Image file %s not present or permission denied.\n"), GTK_MESSAGE_ERROR, Closure->imageName);
 	   return TRUE;
      }
      else
+#endif
      {     Stop(_("Image file %s not present or permission denied.\n"), Closure->imageName);
      }
   }
@@ -159,25 +166,49 @@ int ReportImageEccInconsistencies(Image *image)
 
   if(image->eccFile && !image->eccFileMethod)
   {  CloseImage(image);
+
+#ifdef WITH_GUI_YES
      if(Closure->guiMode)
-     {   CreateMessage(_("\nError correction file type unknown.\n"), GTK_MESSAGE_ERROR);
+     {   GuiCreateMessage(_("\nError correction file type unknown.\n"), GTK_MESSAGE_ERROR);
 	 return TRUE;
      }
      else
+#endif       
      {  Stop(_("\nError correction file type unknown.\n"));
      }
   }
+
+  /* Permission denied for ecc file */
+
+  if(!image->eccFile && image->eccFileState == ECCFILE_NOPERM)
+  {  CloseImage(image);
+
+#ifdef WITH_GUI_YES
+     if(Closure->guiMode)
+     {    GuiCreateMessage(_("\nPermission denied on ecc file (perhaps not writeable?).\n"),
+			  GTK_MESSAGE_ERROR);
+	  return TRUE;
+     }
+     else
+#endif
+     {  Stop(_("\nPermission denied on ecc file (perhaps not writeable?).\n"));
+     }
+  }
+
   
   /* Augmented image but unknown ecc method */
 
   if(!image->eccFile && !image->eccMethod)
   {  CloseImage(image);
+
+#ifdef WITH_GUI_YES
      if(Closure->guiMode)
-     {    CreateMessage(_("\nNo error correction file present.\n"
-			  "No error correction data recognized in image.\n"), GTK_MESSAGE_ERROR);
+     {    GuiCreateMessage(_("\nNo error correction file present.\n"
+			     "No error correction data recognized in image.\n"), GTK_MESSAGE_ERROR);
 	  return TRUE;
      }
      else
+#endif
      {  Stop(_("\nNo error correction file present.\n"
 	       "No error correction data recognized in image.\n"));
      }
@@ -241,12 +272,12 @@ int GetImageFingerprint(Image *image, guint8 *fp_out, guint64 sector)
 	 case 1:    /* unreadable */
 	    if(fp_out) 
 	      memset(fp_out, 0, 16);
-	    Verbose("GetImageFingerprint(%lld): cached unreadable\n", sector);
+	    Verbose("GetImageFingerprint(%" PRId64 "): cached unreadable\n", sector);
 	    return FALSE;
 	 case 2:    /* already cached */
 	    if(fp_out)
 	      memcpy(fp_out, image->imageFP, 16);
-	    Verbose("GetImageFingerprint(%lld): cached\n", sector);
+	    Verbose("GetImageFingerprint(%" PRId64 "): cached\n", sector);
 	    return TRUE;
       }
 
@@ -256,7 +287,7 @@ int GetImageFingerprint(Image *image, guint8 *fp_out, guint64 sector)
      image->fpSector = sector;
      if(status != 1)  /* read error */
      {  image->fpState = 1;
-        Verbose("GetImageFingerprint(%lld): not readable\n", sector);
+        Verbose("GetImageFingerprint(%" PRId64 "): not readable\n", sector);
      }
      else
      {  struct MD5Context md5ctxt;
@@ -268,7 +299,7 @@ int GetImageFingerprint(Image *image, guint8 *fp_out, guint64 sector)
 	MD5Final(image->imageFP, &md5ctxt);
 	if(fp_out)
 	  memcpy(fp_out, image->imageFP, 16);
-	Verbose("GetImageFingerprint(%lld): read & cached\n", sector);
+	Verbose("GetImageFingerprint(%" PRId64 "): read & cached\n", sector);
      }
 
      FreeAlignedBuffer(ab);

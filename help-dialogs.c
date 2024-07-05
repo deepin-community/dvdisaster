@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,9 +20,11 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dvdisaster.h"
+/*** src type: only GUI code ***/
 
-#include "help-dialogs.h"
+#ifdef WITH_GUI_YES
+#include "dvdisaster.h"
+#include "build.h"
 
 /***
  *** Online help system for the preferences
@@ -99,7 +101,7 @@ static gint help_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
  * Create a frame labeled with a link to the help system
  */
 
-LabelWithOnlineHelp* CreateLabelWithOnlineHelp(char *title, char *ascii_text)
+LabelWithOnlineHelp* GuiCreateLabelWithOnlineHelp(char *title, char *ascii_text)
 {  GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
    GtkWidget *vbox, *hbox, *button;
    GtkWidget *ebox  = gtk_event_box_new();
@@ -112,7 +114,7 @@ LabelWithOnlineHelp* CreateLabelWithOnlineHelp(char *title, char *ascii_text)
    lwoh->linkLabel = gtk_label_new(NULL);
    lwoh->linkBox = ebox;
    lwoh->windowTitle = g_locale_to_utf8(title, -1, NULL, NULL, NULL);
-   SetOnlineHelpLinkText(lwoh, ascii_text);
+   GuiSetOnlineHelpLinkText(lwoh, ascii_text);
 
    gtk_label_set_markup(GTK_LABEL(lwoh->normalLabel), lwoh->normalText);
 
@@ -158,7 +160,7 @@ LabelWithOnlineHelp* CreateLabelWithOnlineHelp(char *title, char *ascii_text)
    return lwoh;
 }
 
-LabelWithOnlineHelp* CloneLabelWithOnlineHelp(LabelWithOnlineHelp *orig, char *ascii_text)
+LabelWithOnlineHelp* GuiCloneLabelWithOnlineHelp(LabelWithOnlineHelp *orig, char *ascii_text)
 {  LabelWithOnlineHelp *lwoh;
    GtkWidget *ebox  = gtk_event_box_new();
  
@@ -174,7 +176,7 @@ LabelWithOnlineHelp* CloneLabelWithOnlineHelp(LabelWithOnlineHelp *orig, char *a
    lwoh->linkBox     = ebox;
    lwoh->windowTitle = g_strdup("ignore");
 
-   SetOnlineHelpLinkText(lwoh, ascii_text);
+   GuiSetOnlineHelpLinkText(lwoh, ascii_text);
 
    /*** Put link label into an event box */
 
@@ -190,7 +192,7 @@ LabelWithOnlineHelp* CloneLabelWithOnlineHelp(LabelWithOnlineHelp *orig, char *a
    return lwoh;
 }
 
-void SetOnlineHelpLinkText(LabelWithOnlineHelp *lwoh, char *ascii_text)
+void GuiSetOnlineHelpLinkText(LabelWithOnlineHelp *lwoh, char *ascii_text)
 {  char text[strlen(ascii_text)+80];
 
    if(lwoh->normalText) g_free(lwoh->normalText);
@@ -201,7 +203,7 @@ void SetOnlineHelpLinkText(LabelWithOnlineHelp *lwoh, char *ascii_text)
    lwoh->highlitText = g_locale_to_utf8(text, -1, NULL, NULL, NULL);
 }
 
-void FreeLabelWithOnlineHelp(LabelWithOnlineHelp *lwoh)
+void GuiFreeLabelWithOnlineHelp(LabelWithOnlineHelp *lwoh)
 {  
    if(lwoh->lastSizes)
    {  int i;
@@ -242,7 +244,7 @@ static gboolean wrapper_fix_cb(GtkWidget *widget, GdkEventExpose *event, gpointe
    return FALSE;
 }
 
-void AddHelpParagraph(LabelWithOnlineHelp *lwoh, char *format, ...)
+void GuiAddHelpParagraph(LabelWithOnlineHelp *lwoh, char *format, ...)
 {  GtkWidget *label = gtk_label_new(NULL);
    va_list argp;
    char *text,*utf;
@@ -273,7 +275,7 @@ void AddHelpParagraph(LabelWithOnlineHelp *lwoh, char *format, ...)
  * The list may be preceeded by an optional paragraph of text.
  */
 
-void AddHelpListItem(LabelWithOnlineHelp *lwoh, char *format, ...)
+void GuiAddHelpListItem(LabelWithOnlineHelp *lwoh, char *format, ...)
 {  GtkWidget *label = gtk_label_new(NULL);
    GtkWidget *bullet = gtk_label_new(" - ");
    GtkWidget *hbox = gtk_hbox_new(FALSE, 0);
@@ -310,7 +312,7 @@ void AddHelpListItem(LabelWithOnlineHelp *lwoh, char *format, ...)
  * Add a (fully functional!) widget set to the help window 
  */
 
-void AddHelpWidget(LabelWithOnlineHelp *lwoh, GtkWidget *widget)
+void GuiAddHelpWidget(LabelWithOnlineHelp *lwoh, GtkWidget *widget)
 {  
    gtk_box_pack_start(GTK_BOX(lwoh->vbox), widget, FALSE, FALSE, 10);
    gtk_box_pack_start(GTK_BOX(lwoh->vbox), gtk_hseparator_new(), FALSE, FALSE, 10);
@@ -366,7 +368,7 @@ static gboolean log_idle_func(gpointer data)
 }
 
 
-void UpdateLog()
+void GuiUpdateLog()
 {  static int unique_addr;
 
    if(Closure->logWidget)
@@ -375,7 +377,7 @@ void UpdateLog()
    }
 }
 
-void ShowLog()
+void GuiShowLog()
 { GtkWidget *w;
 
   if(Closure->logWidget) 
@@ -383,10 +385,10 @@ void ShowLog()
      return;
   }
 
-  w = ShowTextfile(_("windowtitle|Log data"),
-		   _("<big>Log data</big>\n"
-		     "<i>Protocol of the current or previous action</i>"),
-		   "*LOG*", &Closure->logScroll, &Closure->logBuffer);
+  w = GuiShowTextfile(_("windowtitle|Log data"),
+		      _("<big>Log data</big>\n"
+			"<i>Protocol of the current or previous action</i>"),
+		      "*LOG*", &Closure->logScroll, &Closure->logBuffer);
 
   g_signal_connect(G_OBJECT(w), "destroy", G_CALLBACK(log_destroy_cb), NULL);
 
@@ -398,12 +400,12 @@ void ShowLog()
  *** Specific help dialogs 
  ***/
 
-void ShowGPL()
+void GuiShowGPL()
 {
-  ShowTextfile(_("windowtitle|GNU General Public License"), 
-	       _("<big>GNU General Public License</big>\n"
-		 "<i>The license terms of dvdisaster.</i>"),
-	       "COPYING", NULL, NULL);
+  GuiShowTextfile(_("windowtitle|GNU General Public License"), 
+		  _("<big>GNU General Public License</big>\n"
+		    "<i>The license terms of dvdisaster.</i>"),
+		  "COPYING", NULL, NULL);
 }
 
 /*
@@ -456,8 +458,8 @@ char *find_file(char *file, size_t *size, char *lang)
    return NULL;
 }
 
-GtkWidget* ShowTextfile(char *title, char *explanation, char *file, 
-			GtkScrolledWindow **scroll_out, GtkTextBuffer **buffer_out)
+GtkWidget* GuiShowTextfile(char *title, char *explanation, char *file, 
+			   GtkScrolledWindow **scroll_out, GtkTextBuffer **buffer_out)
 {  GtkWidget *dialog, *scroll_win, *vbox, *lab, *sep, *view;
    GtkTextBuffer *buffer; 
    GtkTextIter start;
@@ -563,13 +565,6 @@ GtkWidget* ShowTextfile(char *title, char *explanation, char *file,
  * About dialog
  */
 
-static void show_modifying(void)
-{  ShowTextfile(_("windowtitle|Modifying dvdisaster"), 
-	       _("<big>Modifying dvdisaster</big>\n"
-		 "<i>Your changes are not ours.</i>"),
-	       "README.MODIFYING", NULL, NULL);
-}
-
 static gint about_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
 {  GtkWidget *lab = GTK_BIN(widget)->child;
    char *label = (char*)data;
@@ -580,9 +575,8 @@ static gint about_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
    switch(event->type)
    {  case GDK_BUTTON_PRESS: 
         if(!inside) return FALSE; /* Defect in certain Gtk versions? */
-        if(!strcmp(label,"GPL")) ShowGPL(); 
-        else if(!strcmp(label,"MODIFYING")) show_modifying(); 
-        else ShowPDF(g_strdup(label));
+        if(!strcmp(label,"GPL")) GuiShowGPL(); 
+        else GuiShowURL(g_strdup(label));
 	break; 
       case GDK_ENTER_NOTIFY: 
 	g_sprintf(text, "<span underline=\"single\" color=\"blue\">%s</span>", label);
@@ -604,7 +598,7 @@ static gint about_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
    return FALSE;
 }
 
-void AboutText(GtkWidget *parent, char *format, ...)
+void GuiAboutText(GtkWidget *parent, char *format, ...)
 {  GtkWidget *lab;
    char *tmp, *utf_text;
    va_list argp;
@@ -624,7 +618,7 @@ void AboutText(GtkWidget *parent, char *format, ...)
    va_end(argp);
 }
 
-void AboutLink(GtkWidget *parent, char *label, char *action)
+void GuiAboutLink(GtkWidget *parent, char *label, char *action)
 {  GtkWidget *ebox,*lab;
    char text[strlen(label)+80];
    char *label_copy = strdup(label);
@@ -646,7 +640,7 @@ void AboutLink(GtkWidget *parent, char *label, char *action)
    g_free(utf);
 }
 
-void AboutTextWithLink(GtkWidget *parent, char *text, char *action)
+void GuiAboutTextWithLink(GtkWidget *parent, char *text, char *action)
 {  char *copy,*head,*end_of_line;
    char *link_start,*link_end; 
    char *utf;
@@ -676,7 +670,7 @@ void AboutTextWithLink(GtkWidget *parent, char *text, char *action)
 	    g_free(utf);
 	 }
 
-         AboutLink(hbox, link_start, action);
+         GuiAboutLink(hbox, link_start, action);
 
          if(*link_end) 
          {  GtkWidget *lab = gtk_label_new(NULL);
@@ -687,7 +681,7 @@ void AboutTextWithLink(GtkWidget *parent, char *text, char *action)
 	    g_free(utf);
 	 }
       }
-      else AboutText(parent, head);
+      else GuiAboutText(parent, head);
 
       if(end_of_line) head = end_of_line+1;
       else break;
@@ -696,12 +690,10 @@ void AboutTextWithLink(GtkWidget *parent, char *text, char *action)
    g_free(copy);
 }
 
-void AboutDialog()
+void GuiAboutDialog()
 {  GtkWidget *about, *vbox, *sep;
    char *text; 
-#ifndef MODIFIED_SOURCE
-   const char *lang;
-#endif
+
    /* Create the dialog */
 
    about = gtk_dialog_new_with_buttons(_utf("windowtitle|About dvdisaster"), 
@@ -719,54 +711,37 @@ void AboutDialog()
    text = g_strdup_printf("<span weight=\"bold\" size=\"xx-large\">dvdisaster</span><i> "
 			  "Version %s</i>",
 			  Closure->cookedVersion);
-   AboutText(vbox, text);
+   GuiAboutText(vbox, "%s",  text);
    g_free(text);
 
-#ifdef MODIFIED_SOURCE
-   AboutTextWithLink(vbox, 
-		     _("Modified version Copyright 2015 (please fill in - [directions])\n"
-		       "Copyright 2004-2015 Carsten Gnoerlich"),
-		     "MODIFYING");
-#else
-   AboutText(vbox, _("Copyright 2004-2015 Carsten Gnoerlich"));
-#endif
+   GuiAboutText(vbox, _("Copyright 2004-2017 Carsten Gnoerlich.\nCopyright 2019-2021 The dvdisaster development team."));
 
    sep = gtk_hseparator_new();
    gtk_box_pack_start(GTK_BOX(vbox), sep, FALSE, FALSE, 10);
 
 
-   AboutText(vbox, _("dvdisaster provides a margin of safety against data loss\n"
-		      "on optical media caused by aging or scratches.\n"
-		      "It creates error correction data which is used to recover\n"
-		      "unreadable sectors if the disc becomes damaged later on.\n"));
+   GuiAboutText(vbox, _("dvdisaster provides a margin of safety against data loss\n"
+			"on optical media caused by aging or scratches.\n"
+			"It creates error correction data which is used to recover\n"
+			"unreadable sectors if the disc becomes damaged later on.\n"));
 
-   AboutTextWithLink(vbox, _("This software comes with  <b>absolutely no warranty</b>.\n"
+   GuiAboutTextWithLink(vbox, _("This software comes with  <b>absolutely no warranty</b>.\n"
 				"This is free software and you are welcome to redistribute it\n"
 				"under the conditions of the [GNU General Public License].\n"), 
 			"GPL");
 
-#ifdef MODIFIED_SOURCE
-   AboutTextWithLink(vbox, _("\nThis program is <b>not the original</b>. It is based on the\n"
-			     "source code of dvdisaster, but contains third-party changes.\n\n"
-			     "Please do not bother the original authors of dvdisaster\n"
-			     "([www.dvdisaster.org]) about issues with this version.\n"),
-		             "http://www.dvdisaster.org");
+   GuiAboutText(vbox, _("\ne-mail: support@dvdisaster.org")); 
 
-#else
-   lang = g_getenv("LANG");
-   if(lang && !strncmp(lang, "de", 2))
-   {    AboutTextWithLink(vbox, "\n[http://www.dvdisaster.de]", "http://www.dvdisaster.de");
-   }
-   else 
-   {    AboutTextWithLink(vbox, "\n[http://www.dvdisaster.com]", "http://www.dvdisaster.com");
-   }
-
-   AboutText(vbox, _("\ne-mail: carsten@dvdisaster.org   -or-   cgnoerlich@fsfe.org")); 
+   text = g_strdup_printf("WWW: [%s]", HOMEPAGE);
+   GuiAboutTextWithLink(vbox, text, HOMEPAGE);
+   g_free(text);
+   
 #ifdef SYS_NETBSD
-   AboutText(vbox, _("\nNetBSD port: Sergey Svishchev &lt;svs@ropnet.ru&gt;")); 
+   GuiAboutText(vbox, _("\nNetBSD port: Sergey Svishchev &lt;svs@ropnet.ru&gt;")); 
 #endif
-#endif
+
    /* Show it */
 
    gtk_widget_show_all(about);
 }
+#endif /* WITH_GUI_YES */

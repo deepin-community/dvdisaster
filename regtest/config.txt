@@ -1,7 +1,8 @@
 # Global toggles
 
 FAIL_ON_BAD yes
-SPAWN_LOG_WINDOW no
+SPAWN_LOG_WINDOW yes
+INTERACTIVE_DIFF yes
 
 ### RS01 tests
 
@@ -49,6 +50,7 @@ RS01_ecc_recreate_after_read_rs02 no
 RS01_ecc_recreate_after_read_rs03i no
 RS01_ecc_recreate_after_read_rs03f no
 RS01_ecc_create_after_partial_read no
+RS01_ecc_recreate_after_read_wrong_rs01 no
 
 # Repair tests
 
@@ -128,6 +130,7 @@ RS01_read_with_incompatible_ecc no
 RS01_read_with_hardware_failure no
 RS01_read_with_ignored_hardware_failure no
 RS01_read_multipass_partial_success no
+RS01_read_multipass_ecc_partial_success no
 RS01_read_second_pass_with_ecc_success no
 RS01_read_second_pass_with_crc_error no
 RS01_read_medium_with_dsm no
@@ -214,11 +217,11 @@ RS02_ecc_from_larger_rs02_non_blocksize no
 RS02_ecc_non_blocksize no
 RS02_ecc_missing_sectors no
 RS02_ecc_create_after_read no
+RS02_ecc_create_after_partial_read no
 RS02_ecc_recreate_after_read_rs01 no
 RS02_ecc_recreate_after_read_rs02 no
 RS02_ecc_recreate_after_read_rs03i no
 RS02_ecc_recreate_after_read_rs03f no
-RS02_ecc_create_after_partial_read no
 
 # Repair test
 RS02_fix_no_read_perm no
@@ -289,7 +292,7 @@ RS02_read_bad_headers no
 RS02_read_missing_data_sectors no
 RS02_read_missing_crc_sectors no
 RS02_read_missing_ecc_sectors no
-RS02_read_data_bad_byte no
+RS02_read_data_bad_bytes no
 RS02_read_crc_bad_byte no
 RS02_read_ecc_bad_byte no
 RS02_read_modulo_glitch no
@@ -300,6 +303,8 @@ RS02_read_with_rs01_file no
 RS02_read_with_wrong_rs01_file no
 RS02_read_with_rs03_file no
 RS02_read_with_wrong_rs03_file no
+RS02_read_second_pass_with_crc_error no
+RS02_read_multipass_ecc_partial_success no
 
 # Reading tests (adaptive)
 
@@ -360,6 +365,8 @@ RS03i_uncorrectable_dsm_in_image2 no
 RS03i_uncorrectable_dsm_in_image2_verbose no
 RS03i_missing_iso_header no
 RS03i_missing_header no
+RS03i_missing_header5 no
+RS03i_missing_header6 no
 RS03i_missing_header2 no
 RS03i_missing_header3 no
 RS03i_missing_header4 no
@@ -374,6 +381,7 @@ RS03i_rediscover_170_roots_padding no
 RS03i_rediscover_170_roots_padding2 no
 RS03i_with_ecc_file_header no
 RS03i_with_ecc_file_crc_block no
+RS03i_with_crc_error_in_padding no
 
 # Creation tests
 
@@ -392,11 +400,11 @@ RS03i_ecc_missing_sectors no
 RS03i_ecc_layer_multiple no
 RS03i_ecc_no_padding no
 RS03i_ecc_create_after_read no
+RS03i_ecc_create_after_partial_read no
 RS03i_ecc_recreate_after_read_rs01 no
 RS03i_ecc_recreate_after_read_rs02 no
 RS03i_ecc_recreate_after_read_rs03i no
 RS03i_ecc_recreate_after_read_rs03f no
-RS03i_ecc_create_after_partial_read no
 
 # Fixing tests
 
@@ -419,6 +427,7 @@ RS03i_fix_with_missing_header no
 RS03i_fix_with_missing_iso_header no
 RS03i_fix_with_ecc_file_header no
 RS03i_fix_with_ecc_file_crc_block no
+RS03i_fix_with_crc_error_in_padding no
 
 # Scanning tests
 
@@ -454,6 +463,7 @@ RS03i_scan_rediscover_170_roots no
 RS03i_scan_rediscover_170_roots2 no
 RS03i_scan_rediscover_170_roots_padding no
 RS03i_scan_rediscover_170_roots_padding2 no
+RS03i_scan_with_crc_error_in_padding no
 
 # Reading tests (linear)
 
@@ -470,6 +480,7 @@ RS03i_read_bad_header_exhaustive no
 RS03i_read_missing_data_sectors no
 RS03i_read_missing_crc_sectors no
 RS03i_read_missing_ecc_sectors no
+RS03i_read_missing_iso_header no
 RS03i_read_data_bad_byte no
 RS03i_read_crc_bad_byte no
 RS03i_read_ecc_bad_byte no
@@ -483,6 +494,9 @@ RS03i_read_with_missing_header_exhaustive no
 RS03i_read_with_missing_iso_header_exhaustive no
 RS03i_read_with_ecc_file_header no
 RS03i_read_with_ecc_file_crc_block no
+RS03i_read_second_pass_with_crc_error no
+RS03i_read_multipass_ecc_partial_success no
+RS03i_read_with_crc_error_in_padding no
 
 # Reading tests (adaptive)
 
@@ -540,11 +554,11 @@ RS03f_ecc_no_write_perm no
 RS03f_ecc_create_plus56 no
 RS03f_ecc_missing_sectors no
 RS03f_ecc_create_after_read no
+RS03f_ecc_create_after_partial_read no
 RS03f_ecc_recreate_after_read_rs01 no
 RS03f_ecc_recreate_after_read_rs02 no
 RS03f_ecc_recreate_after_read_rs03i no
 RS03f_ecc_recreate_after_read_rs03f no
-RS03f_ecc_create_after_partial_read no
 
 # Repair tests
 
@@ -613,5 +627,7 @@ RS03f_read_data_bad_byte no
 RS03f_read_crc_bad_byte no
 RS03f_read_ecc_bad_byte no
 RS03f_read_crc_section_with_uncorrectable_dsm no
+RS03f_read_second_pass_with_crc_error no
+RS03f_read_multipass_ecc_partial_success no
 
 # Reading tests (adaptive)

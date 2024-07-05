@@ -1,4 +1,4 @@
-.TH DVDISASTER 1 "2015-12-16" "0.79.5" "protection for optical media"
+.TH DVDISASTER 1 "2018-05-14" "0.79.7" "protection for optical media"
 
 .SH NAME
 DVDISASTER \- data loss/scratch/aging protection for optical media
@@ -48,6 +48,7 @@ DVDISASTER \- data loss/scratch/aging protection for optical media
 .RB [\| \-\-internal-rereads
 .IR n \|]
 .RB [\| \-\-medium-info \|]
+.RB [\| \-\-no-progress \|]
 .RB [\| \-\-old-ds-marker \|]
 .RB [\| \-\-prefetch-sectors
 .IR n \|]
@@ -58,12 +59,14 @@ DVDISASTER \- data loss/scratch/aging protection for optical media
 .RB [\| \-\-read-medium
 .IR n \|]
 .RB [\| \-\-read-raw \|]
+.RB [\| \-\-regtest \|]
 .RB [\| \-\-resource-file
 .IR n \|]
 .RB [\| \-\-speed-warning
 .IR n \|]
 .RB [\| \-\-spinup\-delay
 .IR n \|]
+.RB [\| \-\-version \|]
 
 .SH DESCRIPTION
 .B DVDISASTER
@@ -205,28 +208,31 @@ RS01 error correction flles additionally support:
 .RS
 RS02 images:
 .RS
-\-n CD\ \ \ augments image suitable for CD media.
+\-n CD\ \ \ \ augments image suitable for CD media.
 .RE
 .RS
-\-n DVD\ \ augments image suitable for DVD media.
+\-n DVD\ \ \ augments image suitable for DVD media.
 .RE
 .RS
-\-n DVD9 augments image suitable for DVD9 media.
+\-n DVD9\  augments image suitable for DVD9 media.
 .RE
 .RS
-\-n BD\ \ \ augments image suitable for BD media.
+\-n BD\ \ \ \ augments image suitable for BD media.
 .RE
 .RS
-\-n BD2\  augments image suitable for two layered BD media.
+\-n BD2\ \  augments image suitable for two layered BD media.
 .RE
 .RS
-\-n x\ \ \ \ augments image using approx. x sectors in total.
+\-n BDXL3 augments image suitable for three layered BDXL media.
 .RE
 .RS
-\-n x%\ \ \ augments image with approx. x% redundancy. 
+\-n x\ \ \ \ \ augments image using approx. x sectors in total.
 .RE
 .RS
-\-n xr\ \ \ augments image with x roots error correction data.
+\-n x%\ \ \ \ augments image with approx. x% redundancy. 
+.RE
+.RS
+\-n xr\ \ \ \ augments image with x roots error correction data.
 .RE
 .RE
 
@@ -274,7 +280,7 @@ Selects between the sg (SG_IO) driver (default setting) and the
 older cdrom (CDROM_SEND_PACKET) driver for accessing the optical drives.
 Both drivers should work equally well; however the cdrom driver is known
 to cause system failures on some ancient SCSI controllers. 
-The older cdrom driver was the default upto and including dvdisaster 0.72.x;
+The older cdrom driver was the default up to and including dvdisaster 0.72.x;
 if the now pre-selected sg driver changes something to the worse for you
 please switch back to the older driver using \-\-driver=cdrom.
 .TP
@@ -314,7 +320,7 @@ and on very fast media with low latency such as SSDs.
 .RE
 .TP
 .B \-\-fill-unreadable n
-fill unreadable sectors with byte n
+fill unreadable sectors with byte n. Useful for processing images which have been created by other tools. For example, ddrescue fills unreadable sectors with zeros; therefore \-\-fill-unreadable=0 should be used. Please note: Sparse files can not be processed with dvdisaster.
 .TP
 .B \-\-ignore-fatal-sense
 continue reading after potentially fatal error condition.
@@ -347,6 +353,9 @@ this setting anyways. Use \-1 to leave the drive at its default setting.
 .B \-\-medium-info
 Prints information about the currently inserted medium.
 .TP
+.B \-\-no-progress
+Suppresses the progress percentage indicator.
+.TP
 .B \-\-old-ds-marker
 Marks missing sectors in a manner which is compatible with
 dvdisaster 0.70 or older.
@@ -376,13 +385,16 @@ the uncorrected sector instead.
 .RE
 .TP
 .B \-\-read-attempts n-m
-attempts n upto m reads of a defective sector.
+attempts n up to m reads of a defective sector.
 .TP
 .B \-\-read-medium n
 read the whole medium up to n times.
 .TP
 .B \-\-read-raw
 performs read in raw mode if possible.
+.TP
+.B \-\-regtest
+modifies some outputs for better processing with the regression test scripts.
 .TP
 .B \-\-resource-file n
 Specifies the path to the configuration file (default: $HOME/.dvdisaster)
@@ -392,6 +404,9 @@ print warning if speed changes by more than n percent.
 .TP
 .B \-\-spinup-delay n
 wait n seconds for drive to spin up.
+.TP
+.B \-\-version
+print version number and some configuration information.
 .PP
 
 .SH SEE ALSO
@@ -400,8 +415,10 @@ DVDISASTER is documented by its own manual, installed in
 .IR %docdir%
 
 .SH AUTHOR
-DVDISASTER was written by Carsten Gnoerlich <carsten@dvdisaster.com>.
+DVDISASTER was written by Carsten Gnoerlich <carsten@dvdisaster.org>.
+Since version 0.79.7 it is maintained by the dvdisaster development team <support@dvdisaster.org>.
+
 .PP
 This manual page was written by Daniel Baumann
 <daniel.baumann@panthera-systems.net>, for the Debian project (but may be used
-by others). Since version 0.70 it is maintained by Carsten Gnoerlich.
+by others). Since version 0.70 it was updated by Carsten Gnoerlich and is currently maintained by the dvdisaster development team.

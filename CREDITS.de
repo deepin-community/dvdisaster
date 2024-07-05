@@ -10,6 +10,10 @@ Harald Bögeholz (hwb@heise.de)
    Anregungen und Ideen zurück; er hatte zuvor schon eine ähnliche
    Strategie entwickelt und in Ausgabe 16/2005 der c't veröffentlicht.
 
+Jesus Cea <jcea@jcea.es>
+   hat das Projekt am Leben erhalten und ermöglicht momentan das
+   Datenhosting.
+
 Julian Einwag (julian@einwag.de)
    erstellt und pflegt die Mac OS X / Darwin - spezifischen Anpassungen.
 
@@ -29,6 +33,11 @@ Phil Karn
    ist, sollten Sie sich unter http://www.ka9q.net/code/fec/ die
    Originalversion von Phils Bibliothek herunterladen, wenn Sie
    Reed-Solomon-Kode in Ihren eigenen Programmen verwenden möchten.
+
+Stéphane Lesimple <stephane@lesimple.fr>
+   hat das Projekt in einem eigenen GIT-Repository am Leben erhalten
+   sowie Patches und Erweiterungen beigesteuert. Er stellt weiterhin
+   eine Windows-Version bereit.
 
 Daniel Nylander (info@danielnylander.se)
    erstellt und pflegt die schwedische Übersetzung.

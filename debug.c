@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -40,7 +42,7 @@
 
 static void random_error1(Image *image, char *arg)
 {  EccHeader *eh;
-  gint64 block_idx[255];
+   gint64 block_idx[255];
    gint64 s,si;
    int block_sel[255];
    int i,percent,last_percent = 0;
@@ -100,7 +102,7 @@ static void random_error1(Image *image, char *arg)
 	 
 	 if(block_sel[i] && block_idx[i]<image->sectorSize)
 	 {  if(!LargeSeek(image->file, (gint64)(2048*block_idx[i])))
-	       Stop(_("Failed seeking to sector %lld in image: %s"),block_idx[i],strerror(errno));
+	       Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),block_idx[i],strerror(errno));
 
 	    CreateMissingSector(missing, block_idx[i], image->imageFP, FINGERPRINT_SECTOR, NULL); 
 
@@ -108,7 +110,7 @@ static void random_error1(Image *image, char *arg)
 	      write_size = image->inLast;
 
 	    if(LargeWrite(image->file, missing, write_size) != write_size)
-	       Stop(_("Failed writing to sector %lld in image: %s"),block_idx[i],strerror(errno));
+	       Stop(_("Failed writing to sector %" PRId64 " in image: %s"),block_idx[i],strerror(errno));
 	 }
 	 
 	 block_idx[i]++;
@@ -188,12 +190,12 @@ static void random_error2(Image *image, char *arg)
       {  unsigned char missing[2048];
       
 	 if(!LargeSeek(image->file, (gint64)(2048*s)))
-	    Stop(_("Failed seeking to sector %lld in image: %s"), s, strerror(errno));
+	    Stop(_("Failed seeking to sector %" PRId64 " in image: %s"), s, strerror(errno));
 
 	 CreateMissingSector(missing, s, image->imageFP, image->fpSector, NULL); 
 
          if(LargeWrite(image->file, missing, 2048) != 2048)
-	    Stop(_("Failed writing to sector %lld in image: %s"), s, strerror(errno));
+	    Stop(_("Failed writing to sector %" PRId64 " in image: %s"), s, strerror(errno));
       }
    }
 
@@ -236,11 +238,11 @@ static void random_error2(Image *image, char *arg)
 	    else  s = RS02EccSectorIndex(lay, i-eh->dataBytes, si);
 
             if(!LargeSeek(image->file, (gint64)(2048*s)))
-	       Stop(_("Failed seeking to sector %lld in image: %s"), s, strerror(errno));
+	       Stop(_("Failed seeking to sector %" PRId64 " in image: %s"), s, strerror(errno));
 
 	    CreateMissingSector(missing, s, image->imageFP, image->fpSector, NULL); 
 	    if(LargeWrite(image->file, missing, 2048) != 2048)
-	       Stop(_("Failed writing to sector %lld in image: %s"), s, strerror(errno));
+	       Stop(_("Failed writing to sector %" PRId64 " in image: %s"), s, strerror(errno));
 	  }
       }
       
@@ -360,12 +362,12 @@ static void random_error3(Image *image, char *arg)
 	    }
 	      
             if(!LargeSeek(file, (gint64)(2048*file_s)))  // FIXME: wrong for ecc files
-	       Stop(_("Failed seeking to sector %lld in image: %s"), s, strerror(errno));
+	       Stop(_("Failed seeking to sector %" PRId64 " in image: %s"), s, strerror(errno));
 
 	    CreateMissingSector(missing, s, image->imageFP, image->fpSector, NULL); 
 
 	    if(LargeWrite(file, missing, 2048) != 2048)
-	       Stop(_("Failed writing to sector %lld in image: %s"), s, strerror(errno));
+	       Stop(_("Failed writing to sector %" PRId64 " in image: %s"), s, strerror(errno));
 	  }
       }
 
@@ -459,7 +461,7 @@ void Byteset(char *arg)
    byte = atoi(cpos+1);
 
    if(s<0 || s>=image->sectorSize)
-     Stop(_("Sector must be in range [0..%lld]\n"),image->sectorSize-1);
+     Stop(_("Sector must be in range [0..%" PRId64 "]\n"),image->sectorSize-1);
 
    if(i<0 || i>=2048)
      Stop(_("Byte position must be in range [0..2047]"));
@@ -467,7 +469,7 @@ void Byteset(char *arg)
    if(byte<0 || byte>=256)
      Stop(_("Byte value must be in range [0..255]"));
 
-   PrintLog(_("Setting byte %d in sector %lld to value %d.\n"), i, s, byte); 
+   PrintLog(_("Setting byte %d in sector %" PRId64 " to value %d.\n"), i, s, byte); 
 
    /*** Set the byte */
    
@@ -499,7 +501,6 @@ void Erase(char *arg)
    image = OpenImageFromFile(Closure->imageName, O_RDWR, IMG_PERMS);
    if(!image)
      Stop(_("Can't open %s:\n%s"), Closure->imageName, strerror(errno));
-   ExamineUDF(image);  /* get the volume label */
 
    /** See if there is a special debugging option following
        the sector range. This is intentionally an undocumented feature. */
@@ -521,9 +522,9 @@ void Erase(char *arg)
    else start = end = atoi(arg);
 
    if(start>end || start < 0 || end >= image->sectorSize)
-     Stop(_("Sectors must be in range [0..%lld].\n"),image->sectorSize-1);
+     Stop(_("Sectors must be in range [0..%" PRId64 "].\n"),image->sectorSize-1);
 
-   PrintLog(_("Erasing sectors [%lld,%lld]\n"),start,end);
+   PrintLog(_("Erasing sectors [%" PRId64 ",%" PRId64 "]\n"),start,end);
 
    /*** Erase them. */
 
@@ -542,7 +543,7 @@ void Erase(char *arg)
       n = LargeWrite(image->file, missing, m);
 
       if(n != m)
-	Stop(_("Failed writing to sector %lld in image: %s"),s,strerror(errno));
+	Stop(_("Failed writing to sector %" PRId64 " in image: %s"),s,strerror(errno));
    }
 
    /*** Clean up */
@@ -569,9 +570,9 @@ void TruncateImageFile(char *arg)
    end = atoi(arg);
 
    if(end >= image->sectorSize)
-     Stop(_("New length must be in range [0..%lld].\n"),image->sectorSize-1);
+     Stop(_("New length must be in range [0..%" PRId64 "].\n"),image->sectorSize-1);
 
-   PrintLog(_("Truncating image to %lld sectors.\n"),end);
+   PrintLog(_("Truncating image to %" PRId64 " sectors.\n"),end);
 
    /*** Truncate it. */
 
@@ -607,10 +608,10 @@ void RandomImage(char *image_name, char *n_sectors, int mark)
 
    /*** Print banner */
 
-   PrintLog(_("\nCreating random image with %lld sectors.\n\n"
+   PrintLog(_("\nCreating random image with %" PRId64 " sectors.\n\n"
 	      "There is no need for permanently storing this image;\n" 
               "you can always reproduce it by calling\n"
-	      "dvdisaster --debug %s %lld --random-seed %d\n\n"),
+	      "dvdisaster --debug %s %" PRId64 " --random-seed %d\n\n"),
 	      sectors, 
 	      mark ? "--marked-image" : "--random-image",
 	      sectors, Closure->randomSeed);
@@ -652,14 +653,14 @@ void RandomImage(char *image_name, char *n_sectors, int mark)
       {  int i;
 
 	 for(i=0; i<2048; i+=128)
-	   sprintf(((char*)buf)+i, "Sector  %8lld", (long long int)s);
+	   sprintf(((char*)buf)+i, "Sector  %8" PRId64 , s);
       }
 
       n = LargeWrite(image, buf, 2048);
       s++;
 
       if(n != 2048)
-	Stop(_("Failed writing to sector %lld in image: %s"),s,strerror(errno));
+	Stop(_("Failed writing to sector %" PRId64 " in image: %s"),s,strerror(errno));
 
       percent = (100*s)/sectors;
       if(last_percent != percent) 
@@ -697,20 +698,20 @@ void ZeroUnreadable(void)
    {  int n = LargeRead(image->file, buf, 2048);
 
       if(n != 2048)
-	Stop(_("Could not read image sector %lld:\n%s\n"),s,strerror(errno));
+	Stop(_("Could not read image sector %" PRId64 ":\n%s\n"),s,strerror(errno));
 
       /* Replace the dead sector marker */
 
       if(CheckForMissingSector(buf, s, image->imageFP, FINGERPRINT_SECTOR) != SECTOR_PRESENT)
       {
 	if(!LargeSeek(image->file, (gint64)(2048*s)))
-	  Stop(_("Failed seeking to sector %lld in image: %s"),s,strerror(errno));
+	  Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),s,strerror(errno));
 
       	n = LargeWrite(image->file, zeros, 2048);
 	n=2048;
 	
 	if(n != 2048)
-	  Stop(_("Failed writing to sector %lld in image: %s"),s,strerror(errno));
+	  Stop(_("Failed writing to sector %" PRId64 " in image: %s"),s,strerror(errno));
 
 	cnt++;
       }
@@ -722,7 +723,7 @@ void ZeroUnreadable(void)
       }
    }
 
-   PrintProgress(_("%lld \"unreadable sector\" markers replaced.\n"), cnt);
+   PrintProgress(_("%" PRId64 " \"unreadable sector\" markers replaced.\n"), cnt);
 
    CloseImage(image);
 }
@@ -799,16 +800,16 @@ void ShowHeader(char *arg)
    sector =  atoi(arg);
 
    if(sector < 0 || sector >= image->sectorSize)
-     Stop(_("Sector must be in range [0..%lld]\n"),image->sectorSize-1);
+     Stop(_("Sector must be in range [0..%" PRId64 "]\n"),image->sectorSize-1);
 
    /*** Load it. */
 
    if(!LargeSeek(image->file, (gint64)(2048*sector)))
-     Stop(_("Failed seeking to sector %lld in image: %s"),sector,strerror(errno));
+     Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),sector,strerror(errno));
 
    n = LargeRead(image->file, eh, 2048);
    if(n != 2048)
-     Stop(_("Failed reading sector %lld in image: %s"),sector,strerror(errno));
+     Stop(_("Failed reading sector %" PRId64 " in image: %s"),sector,strerror(errno));
 
    /*** Clean up */
 
@@ -840,18 +841,18 @@ void ShowSector(char *arg)
    sector =  atoi(arg);
 
    if(sector < 0 || sector >= image->sectorSize)
-     Stop(_("Sector must be in range [0..%lld]\n"),image->sectorSize-1);
+     Stop(_("Sector must be in range [0..%" PRId64 "]\n"),image->sectorSize-1);
 
-   PrintLog(_("Contents of sector %lld:\n\n"),sector);
+   PrintLog(_("Contents of sector %" PRId64 ":\n\n"),sector);
 
    /*** Show it. */
 
    if(!LargeSeek(image->file, (gint64)(2048*sector)))
-     Stop(_("Failed seeking to sector %lld in image: %s"),sector,strerror(errno));
+     Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),sector,strerror(errno));
 
    n = LargeRead(image->file, buf, 2048);
    if(n != 2048)
-     Stop(_("Failed reading sector %lld in image: %s"),sector,strerror(errno));
+     Stop(_("Failed reading sector %" PRId64 " in image: %s"),sector,strerror(errno));
 
    if(Closure->debugCDump)
         CDump(buf, sector, 2048, 16);
@@ -888,10 +889,10 @@ void ReadSector(char *arg)
    if(sector < 0 || sector >= image->dh->sectors)
    {  CloseImage(image);
       FreeAlignedBuffer(ab);
-      Stop(_("Sector must be in range [0..%lld]\n"),image->dh->sectors-1);
+      Stop(_("Sector must be in range [0..%" PRId64 "]\n"),image->dh->sectors-1);
    }
 
-   PrintLog(_("Contents of sector %lld:\n\n"),sector);
+   PrintLog(_("Contents of sector %" PRId64 ":\n\n"),sector);
 
    /*** Read it. */
 
@@ -902,7 +903,7 @@ void ReadSector(char *arg)
    if(status)
    {  CloseImage(image);
       FreeAlignedBuffer(ab);
-      Stop(_("Failed reading sector %lld: %s"),sector,strerror(errno));
+      Stop(_("Failed reading sector %" PRId64 ": %s"),sector,strerror(errno));
    }
 
    if(Closure->debugCDump)
@@ -951,10 +952,10 @@ void RawSector(char *arg)
    if(lba < 0 || lba >= image->dh->sectors)
    {  CloseImage(image);
       FreeAlignedBuffer(ab);
-      Stop(_("Sector must be in range [0..%lld]\n"),image->dh->sectors-1);
+      Stop(_("Sector must be in range [0..%" PRId64 "]\n"),image->dh->sectors-1);
    }
 
-   PrintLog(_("Contents of sector %lld:\n\n"),lba);
+   PrintLog(_("Contents of sector %" PRId64 ":\n\n"),lba);
 
    /*** Try the raw read */
 
@@ -1023,7 +1024,7 @@ void RawSector(char *arg)
  *
  * ./dvdisaster --debug --send-cdb 12,00,00,00,24,00:24
  *
- * The first six bytes make up the cdb; cdbs with upto 12 bytes are possible.
+ * The first six bytes make up the cdb; cdbs with up to 12 bytes are possible.
  * The :24 arg is the allocation length. 
  * Note that the allocation length must match those specified in the cdb;
  * differing values may crash the system.
@@ -1162,7 +1163,7 @@ void CopySector(char *arg)
 
    LargeStat(from_path, &sectors); sectors /= 2048;
    if(from_sector<0 || from_sector>sectors-1)
-     Stop(_("Source sector must be in range [0..%lld]\n"), sectors-1);
+     Stop(_("Source sector must be in range [0..%" PRId64 "]\n"), sectors-1);
 
 
    if(!(to = LargeOpen(to_path, O_WRONLY, IMG_PERMS)))
@@ -1170,27 +1171,27 @@ void CopySector(char *arg)
 
    LargeStat(to_path, &sectors); sectors /= 2048;
    if(to_sector<0 || to_sector>sectors-1)
-     Stop(_("Destination sector must be in range [0..%lld]\n"), sectors-1);
+     Stop(_("Destination sector must be in range [0..%" PRId64 "]\n"), sectors-1);
 
    /*** Copy the sector */
 
-   PrintLog(_("Copying sector %lld from %s to sector %lld in %s.\n"), 
+   PrintLog(_("Copying sector %" PRId64 " from %s to sector %" PRId64 " in %s.\n"), 
 	    from_sector, from_path, to_sector, to_path); 
 
    if(!LargeSeek(from, (gint64)(2048*from_sector)))
-      Stop(_("Failed seeking to sector %lld in image: %s"),
+      Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 	   from_sector, strerror(errno));
 
    if(LargeRead(from, buf, 2048) != 2048)
-      Stop(_("Failed reading sector %lld in image: %s"),
+      Stop(_("Failed reading sector %" PRId64 " in image: %s"),
 	   from_sector, strerror(errno));
 
    if(!LargeSeek(to, (gint64)(2048*to_sector)))
-      Stop(_("Failed seeking to sector %lld in image: %s"),
+      Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 	   to_sector, strerror(errno));
 
    if(LargeWrite(to, buf, 2048) != 2048)
-      Stop(_("Failed writing to sector %lld in image: %s"),
+      Stop(_("Failed writing to sector %" PRId64 " in image: %s"),
 	   to_sector, strerror(errno));
 
    /*** Clean up */
@@ -1233,9 +1234,9 @@ void MergeImages(char *arg, int mode)
 
    /*** Compare/merge the images */
 
-   if(!mode) PrintLog("Comparing %s (%lld sectors) with %s (%lld sectors).\n", 
+   if(!mode) PrintLog("Comparing %s (%" PRId64 " sectors) with %s (%" PRId64 " sectors).\n", 
 		      left_path, left_sectors, right_path, right_sectors);
-   else      PrintLog("Merging %s (%lld sectors) with %s (%lld sectors).\n",
+   else      PrintLog("Merging %s (%" PRId64 " sectors) with %s (%" PRId64 " sectors).\n",
 		      left_path, left_sectors, right_path, right_sectors);
 
    /*** Compare them */
@@ -1249,33 +1250,33 @@ void MergeImages(char *arg, int mode)
    {  unsigned char left_buf[2048], right_buf[2048];
 
       if(LargeRead(left, left_buf, 2048) != 2048)
-	 Stop(_("Failed reading sector %lld in image: %s"),
+	 Stop(_("Failed reading sector %" PRId64 " in image: %s"),
 	      s, strerror(errno));
 
       if(LargeRead(right, right_buf, 2048) != 2048)
-	 Stop(_("Failed reading sector %lld in image: %s"),
+	 Stop(_("Failed reading sector %" PRId64 " in image: %s"),
 	      s, strerror(errno));
 
       if(memcmp(left_buf, right_buf, 2048))
       {
 	 if(CheckForMissingSector(left_buf, s, NULL, 0) != SECTOR_PRESENT)
-	 {  if(!mode) PrintLog("< Sector %lld missing\n", s);
+	 {  if(!mode) PrintLog("< Sector %" PRId64 " missing\n", s);
 	    else
-	    {  PrintLog("< Sector %lld missing; copied from %s.\n", s, right_path);
+	    {  PrintLog("< Sector %" PRId64 " missing; copied from %s.\n", s, right_path);
 	       if(!LargeSeek(left, (2048*s)))
-		  Stop(_("Failed seeking to sector %lld in image: %s"),
+		  Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 		       s, strerror(errno));
 
 	       if(LargeWrite(left, right_buf, 2048) != 2048)
-		  Stop(_("Failed writing to sector %lld in image: %s"),
+		  Stop(_("Failed writing to sector %" PRId64 " in image: %s"),
 		       s, strerror(errno));
 	    }
 	 }
 	 else if(CheckForMissingSector(right_buf, s, NULL, 0) != SECTOR_PRESENT)
-	 {  PrintLog("> Sector %lld missing\n", s);
+	 {  PrintLog("> Sector %" PRId64 " missing\n", s);
 	 }
 	 else
-	 {  PrintLog("! Sector %lld differs in images\n", s);
+	 {  PrintLog("! Sector %" PRId64 " differs in images\n", s);
 	 }
       }
 
@@ -1287,27 +1288,27 @@ void MergeImages(char *arg, int mode)
    }
 
    if(left_sectors > right_sectors)
-   {  PrintLog("%lld sectors missing at the end of %s\n", 
+   {  PrintLog("%" PRId64 " sectors missing at the end of %s\n", 
 		  left_sectors-right_sectors, right_path);
    }
 
    if(left_sectors < right_sectors)
    {  if(!mode)
-	 PrintLog("%lld sectors missing at the end of %s\n", 
+	 PrintLog("%" PRId64 " sectors missing at the end of %s\n", 
 		  right_sectors-left_sectors, left_path);
       else
       {  unsigned char buf[2048];
 
-	 PrintLog("Transferring %lld sectors from the end of %s to %s.\n", 
+	 PrintLog("Transferring %" PRId64 " sectors from the end of %s to %s.\n", 
 		  right_sectors-left_sectors, right_path, left_path);
 	 
 	 for(s=left_sectors; s<right_sectors; s++)
 	 {  if(LargeRead(right, buf, 2048) != 2048)
-	       Stop(_("Failed reading sector %lld in image: %s"),
+	       Stop(_("Failed reading sector %" PRId64 " in image: %s"),
 		    s, strerror(errno));
 
 	    if(LargeWrite(left, buf, 2048) != 2048)
-	       Stop(_("Failed writing to sector %lld in image: %s"),
+	       Stop(_("Failed writing to sector %" PRId64 " in image: %s"),
 		    s, strerror(errno));
 	 }
       }

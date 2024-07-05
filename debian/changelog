@@ -1,3 +1,48 @@
+dvdisaster (0.79.10-3.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix FTBFS with -Werror=implicit-function-declaration Closes: #1066010
+
+ -- Andreas Metzler <ametzler@debian.org>  Sun, 07 Apr 2024 18:38:18 +0200
+
+dvdisaster (0.79.10-3) unstable; urgency=medium
+
+  * Team upload
+  * Patch: Fix documentation with current LaTeX versions (Closes: #1058517)
+
+ -- Bastian Germann <bage@debian.org>  Sat, 13 Jan 2024 15:05:58 +0000
+
+dvdisaster (0.79.10-2) unstable; urgency=medium
+
+  * Team upload
+  * Drop GUI (Closes: #967320)
+
+ -- Bastian Germann <bage@debian.org>  Fri, 20 Oct 2023 17:20:01 +0200
+
+dvdisaster (0.79.10-1) unstable; urgency=medium
+
+  * Team upload
+  * Track new upstream (Closes: #1032747, #988838)
+  * New upstream version 0.79.10
+  * d/copyright: Amend with new upstream's info
+  * Rebase patches on new upstream version
+  * Drop non-existing doc README.MODIFYING
+  * Compress the right files
+
+  [ Debian Janitor ]
+  * Set debhelper-compat version in Build-Depends.
+  * Remove obsolete fields Contact, Name from debian/upstream/metadata (already
+    present in machine-readable debian/copyright).
+  * Fix day-of-week for changelog entry 0.71~devel23-4.
+  * Update standards version to 4.6.1, no changes needed.
+  * Avoid explicitly specifying -Wl,--as-needed linker flag.
+
+  [ TANIGUCHI Takaki ]
+  * d/control: Remove Rogério Brito from Uploaders (Closes: #994658)
+  * d/test: Mark as superficial (Closes: #974453)
+
+ -- Bastian Germann <bage@debian.org>  Fri, 22 Sep 2023 16:50:58 +0200
+
 dvdisaster (0.79.5-10) unstable; urgency=medium
 
   * d/salsa-ci.yml: Add CI conf
@@ -361,7 +406,7 @@ dvdisaster (0.71~devel23-4) unstable; urgency=low
 
   * Fixed clean target in rules (Closes: #442559).
 
- -- Daniel Baumann <daniel@debian.org>  Sun, 17 Sep 2007 00:37:00 +0200
+ -- Daniel Baumann <daniel@debian.org>  Mon, 17 Sep 2007 00:37:00 +0200
 
 dvdisaster (0.71~devel23-3) unstable; urgency=medium
 

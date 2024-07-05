@@ -10,6 +10,9 @@ Harald Bögeholz (hwb@heise.de)
    suggestions and ideas; he had implemented a similar strategy 
    before and published in issue 16/2005 of the german periodical "c't".
 
+Jesus Cea <jcea@jcea.es>
+   for keeping the project alive and providing hosting for the project
+
 Julian Einwag (julian@einwag.de).
    provides and maintains the Mac OS X / Darwin port.
 
@@ -28,6 +31,10 @@ Phil Karn
    Since the code was optimized and trimmed down for dvdisaster´s 
    special needs, you should get the original thing if you're 
    interested in incorporating RS codes into your application.
+
+Stéphane Lesimple <stephane@lesimple.fr>
+   for keeping the project alive in his own GIT repository, and
+   for supplying patches, enhancements and the Windows version.
 
 Daniel Nylander (info@danielnylander.se)
    provides and maintains the Swedish translation.

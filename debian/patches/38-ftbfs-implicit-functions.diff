@@ -1,0 +1,33 @@
+Description: Fix FTBFS with -Werror=implicit-function-declaration
+Author: Andreas Metzler <ametzler@debian.org>
+Bug-Debian: https://bugs.debian.org/1066010
+Origin: vendor
+Forwarded: no
+Last-Update: 2024-04-07
+
+--- dvdisaster-0.79.10.orig/scripts/bash-based-configure
++++ dvdisaster-0.79.10/scripts/bash-based-configure
+@@ -1188,6 +1188,7 @@ function REQUIRE_MOTIF()
+ 
+    cat >conftest.c <<EOF
+ #include <Xm/Xm.h>
++#include <stdio.h>
+ int main()
+ {  printf("%d.%d.%d\n",XmVERSION,XmREVISION,XmUPDATE_LEVEL);
+ }
+@@ -1215,6 +1216,7 @@ EOF
+ 
+    cat >conftest.c <<EOF
+ #include <Xm/Xm.h>
++#include <stdio.h>
+ int main()
+ {  printf("%s\n",LesstifVERSION_STRING);
+ }
+@@ -1373,6 +1375,7 @@ EOF
+ 
+    cat >conftest.c <<EOF
+ #include <glib.h>
++#include <stdio.h>
+ int main(int argc, char *argv[])
+ { g_malloc(1024); 
+ 

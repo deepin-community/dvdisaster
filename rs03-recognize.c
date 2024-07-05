@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
- *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
+ * 
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 #include "udf.h"
@@ -53,7 +55,7 @@ static int valid_crc_block(unsigned char *buf, guint64 sector, int image_expecte
    real_crc = Crc32((unsigned char*)cb, 2048);
 
    if(real_crc != recorded_crc)
-   {  Verbose(".. invalid CRC block %lld\n", (unsigned long long)sector);
+   {  Verbose(".. invalid CRC block %" PRId64 "\n", sector);
       return 1;
    }
 
@@ -409,19 +411,20 @@ int RS03RecognizeImage(Image *image)
 
    Verbose("RS03RecognizeImage: No EH, entering exhaustive search\n");
 
-   if(Closure->debugMode && Closure->mediumSize)
+   if(Closure->debugMode && Closure->mediumSize > 170)
    {  layer_size = Closure->mediumSize/GF_FIELDMAX;
-      Verbose("Warning: image size set to %lld for debugging!\n", Closure->mediumSize);
+      Verbose("Warning: image size set to %" PRId64 " for debugging!\n", Closure->mediumSize);
    }
    else
    {  if(image_sectors < CDR_SIZE)         layer_size = CDR_SIZE/GF_FIELDMAX;
       else if(image_sectors < DVD_SL_SIZE) layer_size = DVD_SL_SIZE/GF_FIELDMAX; 
       else if(image_sectors < DVD_DL_SIZE) layer_size = DVD_DL_SIZE/GF_FIELDMAX; 
       else if(image_sectors < BD_SL_SIZE)  layer_size = BD_SL_SIZE/GF_FIELDMAX; 
-      else                                 layer_size = BD_DL_SIZE/GF_FIELDMAX; 
+      else if(image_sectors < BD_DL_SIZE)  layer_size = BD_DL_SIZE/GF_FIELDMAX;
+      else                                 layer_size = BDXL_TL_SIZE/GF_FIELDMAX; 
    }
 
-   Verbose(".. trying layer size %lld\n", layer_size);
+   Verbose(".. trying layer size %" PRId64 "\n", layer_size);
 
    /*
     * Try a quick scan for the CRC sectors in order
@@ -492,7 +495,7 @@ int RS03RecognizeImage(Image *image)
 
 	       if(crc_state == 1) /* corrupted crc header, try this layer again later */
 		 continue;
-	       Verbose("** Success: sector %lld, rediscovered format with %d roots\n",
+	       Verbose("** Success: sector %" PRId64 ", rediscovered format with %d roots\n",
 		       sector, nroots); 
 	       image->eccHeader = g_malloc(sizeof(EccHeader));
 	       ReconstructRS03Header(image->eccHeader, cb);
@@ -545,12 +548,12 @@ mark_invalid_layer:
 	 int n;
 
 	 if(!LargeSeek(ecc_file, (gint64)(2048*sector)))
-	    Stop(_("Failed seeking to sector %lld in image: %s"),
+	    Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 		 sector, strerror(errno));
 
 	 n = LargeRead(ecc_file, rc->layer[i], 2048);
 	 if(n != 2048)
-	    Stop(_("Failed reading sector %lld in image: %s"),sector,strerror(errno));
+	    Stop(_("Failed reading sector %" PRId64 " in image: %s"),sector,strerror(errno));
       }	 
 
       /* Experimentally apply the RS code */

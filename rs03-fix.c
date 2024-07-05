@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -46,14 +48,13 @@ static void fix_cleanup(gpointer data)
 
    UnregisterCleanup();
 
-   if(Closure->guiMode)
-   {  if(fc->earlyTermination)
-         SwitchAndSetFootline(fc->wl->fixNotebook, 1,
+   if(fc->earlyTermination)
+   {  GuiSwitchAndSetFootline(fc->wl->fixNotebook, 1,
 			      fc->wl->fixFootline,
 			      _("<span %s>Aborted by unrecoverable error.</span>"),
-			      Closure->redMarkup); 
-      AllowActions(TRUE);
+			      Closure->redMarkup);
    }
+   GuiAllowActions(TRUE);
 
    /** Clean up */
 
@@ -71,8 +72,7 @@ static void fix_cleanup(gpointer data)
 
    g_free(fc);
 
-   if(Closure->guiMode)
-     g_thread_exit(0);
+   GuiExitWorkerThread();
 }
 
 /*
@@ -106,16 +106,13 @@ static void expand_image(Image *image, EccHeader *eh, gint64 new_size)
 
       percent = (100*sectors) / new_sectors;
       if(last_percent != percent)
-      {  if(Closure->guiMode)
-	  ;
-	 else PrintProgress(_("Expanding image: %3d%%"), percent);
+      {  if(!Closure->guiMode)
+	   PrintProgress(_("Expanding image: %3d%%"), percent);
 	 last_percent = percent; 
       }
    }
 
-   if(Closure->guiMode)
-     ;
-   else 
+   if(!Closure->guiMode)
    {  PrintProgress(_("Expanding image: %3d%%"), 100);
       PrintProgress("\n");
    }
@@ -157,8 +154,10 @@ void RS03Fix(Image *image)
    gint64 damaged_eccblocks=0;
    gint64 damaged_eccsecs=0;
    gint64 expected_sectors;
-   char *t=NULL,*msg;
-
+   char *t=NULL;
+#ifdef WITH_GUI_YES
+   char *msg;
+#endif
    /*** Register the cleanup procedure for GUI mode */
 
    fc->image = image;
@@ -172,10 +171,9 @@ void RS03Fix(Image *image)
 
    /*** Open the image file */
 
-   if(Closure->guiMode)
-     SetLabelText(GTK_LABEL(wl->fixHeadline),
-		  _("<big>Repairing the image.</big>\n<i>%s</i>"),
-		  _("Opening files..."));
+   GuiSetLabelText(wl->fixHeadline,
+		   _("<big>Repairing the image.</big>\n<i>%s</i>"),
+		   _("Opening files..."));
 
    /* Calculate the layout and optinally open thee ecc file */
 
@@ -213,6 +211,7 @@ void RS03Fix(Image *image)
 
    /*** Announce what we are going to do */
 
+#ifdef WITH_GUI_YES   
    if(Closure->guiMode)
    {  if(eh->methodFlags[0] & MFLAG_ECC_FILE)
         msg = g_strdup_printf(_("Error correction file using Method RS03, %d roots, %4.1f%% redundancy."),
@@ -223,12 +222,13 @@ void RS03Fix(Image *image)
 			      eh->eccBytes, 
 			      ((double)eh->eccBytes*100.0)/(double)eh->dataBytes);
 
-      SetLabelText(GTK_LABEL(wl->fixHeadline),
-		  _("<big>Repairing the image.</big>\n<i>%s</i>"), msg);
+      GuiSetLabelText(wl->fixHeadline,
+		      _("<big>Repairing the image.</big>\n<i>%s</i>"), msg);
       RS03SetFixMaxValues(wl, eh->dataBytes, eh->eccBytes, expected_sectors);
       g_free(msg);
    }    
-
+#endif /* WITH_GUI_YES */
+   
    PrintLog(_("\nFix mode(%s): Repairable sectors will be fixed in the image.\n"),
 	    eh->methodFlags[0] & MFLAG_ECC_FILE ? "RS03f" : "RS03i");
 
@@ -238,23 +238,25 @@ void RS03Fix(Image *image)
    {  int difference = image->inLast - eh->inLast;
       guint64 expected_image_size = 2048*(expected_sectors-1)+eh->inLast;
 
+#ifdef WITH_GUI_YES      
       if(Closure->guiMode)
-      {  int answer = ModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, NULL,
-				  _("The image file is %d bytes longer than noted\n"
-				    "in the ecc file. Shall the superfluous bytes\n"
-				    "be removed from the image file?\n"),
-				    difference);
+      {  int answer = GuiModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, NULL,
+				     _("The image file is %d bytes longer than noted\n"
+				       "in the ecc file. Shall the superfluous bytes\n"
+				       "be removed from the image file?\n"),
+				     difference);
 
 	 if(!answer)
-	 {  SwitchAndSetFootline(fc->wl->fixNotebook, 1,
-				 fc->wl->fixFootline,
-				 _("<span %s>Aborted by user request!</span>"),
-				 Closure->redMarkup); 
+	 {  GuiSwitchAndSetFootline(fc->wl->fixNotebook, 1,
+				    fc->wl->fixFootline,
+				    _("<span %s>Aborted by user request!</span>"),
+				    Closure->redMarkup); 
 	    fc->earlyTermination = FALSE;  /* suppress respective error message */
 	    goto terminate;
 	 }
       }
-
+#endif /* WITH_GUI_YES */
+      
       if(!Closure->guiMode && !Closure->truncate)
         Stop(_("The image file is %d bytes longer than noted\n"
 	       "in the ecc file.\n"
@@ -274,23 +276,23 @@ void RS03Fix(Image *image)
    if(image->sectorSize > expected_sectors)
    { gint64 diff = image->sectorSize - expected_sectors;
      guint64 expected_image_size = 2048*(expected_sectors-1)+eh->inLast;
-     char *trans = _("The image file is %lld sectors longer as noted in the\n"
+     char *trans = _("The image file is %" PRId64 " sectors longer as noted in the\n"
 		     "ecc data. This might simply be zero padding, but could\n"
 		     "also mean that the image was manipulated after appending\n"
 		     "the error correction information.\n\n%s");
 
      if(diff>0 && diff<=2)
      {  int answer = ModalWarning(GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, NULL,
-				  _("Image file is %lld sectors longer than expected.\n"
+				  _("Image file is %" PRId64 " sectors longer than expected.\n"
 				    "Assuming this is a TAO mode medium.\n"
-				    "%lld sectors will be removed from the image end.\n"),
+				    "%" PRId64 " sectors will be removed from the image end.\n"),
 				  diff, diff);
 
         if(!answer)
-        {  SwitchAndSetFootline(fc->wl->fixNotebook, 1,
-				fc->wl->fixFootline,
-				_("<span %s>Aborted by user request!</span>"),
-				Closure->redMarkup); 
+        {  GuiSwitchAndSetFootline(fc->wl->fixNotebook, 1,
+				   fc->wl->fixFootline,
+				   _("<span %s>Aborted by user request!</span>"),
+				   Closure->redMarkup); 
 	   fc->earlyTermination = FALSE;  /* suppress respective error message */
 	   goto terminate;
 	}
@@ -300,18 +302,19 @@ void RS03Fix(Image *image)
         if(!LargeTruncate(image->file, (gint64)expected_image_size))
 	  Stop(_("Could not truncate %s: %s\n"),Closure->imageName,strerror(errno));
      }
-     
+
+#ifdef WITH_GUI_YES     
      if(diff>2 && Closure->guiMode)
-     {  int answer = ModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, NULL,
-				 trans,
-				 diff, 
-				 _("Is it okay to remove the superfluous sectors?"));
+     {  int answer = GuiModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, NULL,
+				    trans,
+				    diff, 
+				    _("Is it okay to remove the superfluous sectors?"));
 
        if(!answer)
-       {  SwitchAndSetFootline(fc->wl->fixNotebook, 1,
-			       fc->wl->fixFootline,
-			       _("<span %s>Aborted by user request!</span>"),
-			       Closure->redMarkup); 
+       {  GuiSwitchAndSetFootline(fc->wl->fixNotebook, 1,
+				  fc->wl->fixFootline,
+				  _("<span %s>Aborted by user request!</span>"),
+				  Closure->redMarkup); 
 	  fc->earlyTermination = FALSE;  /* suppress respective error message */
 	  goto terminate;
        }
@@ -321,9 +324,10 @@ void RS03Fix(Image *image)
        if(!LargeTruncate(image->file, (gint64)expected_image_size))
 	 Stop(_("Could not truncate %s: %s\n"),Closure->imageName,strerror(errno));
 
-       PrintLog(_("Image has been truncated by %lld sectors.\n"), diff);
+       PrintLog(_("Image has been truncated by %" PRId64 " sectors.\n"), diff);
      }
-
+#endif /* WITH_GUI_YES */
+     
      if(diff>2 && !Closure->guiMode)
      {  if(!Closure->truncate)
 	   Stop(trans, 
@@ -336,7 +340,7 @@ void RS03Fix(Image *image)
 	 if(!LargeTruncate(image->file, (gint64)expected_image_size))
 	   Stop(_("Could not truncate %s: %s\n"),Closure->imageName,strerror(errno));
 
-	 PrintLog(_("Image has been truncated by %lld sectors.\n"), diff);
+	 PrintLog(_("Image has been truncated by %" PRId64 " sectors.\n"), diff);
      }
    }
 
@@ -381,10 +385,11 @@ void RS03Fix(Image *image)
 
      if(Closure->stopActions) 
      {   if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-	   SwitchAndSetFootline(fc->wl->fixNotebook, 1,
-				fc->wl->fixFootline,
-				_("<span %s>Aborted by user request!</span>"),
-				Closure->redMarkup); 
+	 {  GuiSwitchAndSetFootline(fc->wl->fixNotebook, 1,
+				    fc->wl->fixFootline,
+				    _("<span %s>Aborted by user request!</span>"),
+				    Closure->redMarkup);
+	 }
          fc->earlyTermination = FALSE;  /* suppress respective error message */
 	 goto terminate;
      }
@@ -475,7 +480,7 @@ void RS03Fix(Image *image)
 	   if(crc_valid && !erasure_map[i] && crc != crc_buf[crc_idx])
 	   {  erasure_map[i] = 3;
 	      erasure_list[erasure_count++] = i;
-	      PrintCLI(_("CRC error in sector %lld\n"),block_idx[i]);
+	      PrintCLI(_("CRC error in sector %" PRId64 "\n"),block_idx[i]);
 	      damaged_sectors++;
 	      crc_errors++;
 	   }
@@ -509,7 +514,7 @@ void RS03Fix(Image *image)
      {  if(!Closure->guiMode)
 	{  int sep_printed = 0;
 
-           PrintCLI(_("* Ecc block %lld: %3d unrepairable sectors: "), s, erasure_count);
+           PrintCLI(_("* Ecc block %" PRId64 ": %3d unrepairable sectors: "), s, erasure_count);
 
 	   for(i=0; i<erasure_count; i++)
 	   {  /* sector counting wraps to 0 for ecc files after the data layer */
@@ -517,7 +522,7 @@ void RS03Fix(Image *image)
 	      {  PrintCLI("; ecc file: ");
                  sep_printed = 1;
               }
-              PrintCLI("%lld ", RS03SectorIndex(lay, erasure_list[i], s));
+              PrintCLI("%" PRId64 " ", RS03SectorIndex(lay, erasure_list[i], s));
 	   }
 	   PrintCLI("\n");
      }
@@ -565,7 +570,7 @@ void RS03Fix(Image *image)
 	if(syn_error) damaged_eccblocks++; 
 	else continue;
 
-	//printf("Syndrome error for ecc block %lld, byte %d\n",s,bi);
+	//printf("Syndrome error for ecc block %" PRId64 ", byte %d\n",s,bi);
 
 	/* If we have found any erasures, 
 	   initialize lambda to be the erasure locator polynomial */
@@ -678,7 +683,7 @@ void RS03Fix(Image *image)
 	      {  PrintCLI(_("; ecc file: "));
                  sep_printed = 1;
               }
-              PrintCLI("%lld ", RS03SectorIndex(lay, erasure_list[i], s));
+              PrintCLI("%" PRId64 " ", RS03SectorIndex(lay, erasure_list[i], s));
 	   }
 	   PrintCLI("\n");
 	   uncorrected += erasure_count;
@@ -735,10 +740,10 @@ void RS03Fix(Image *image)
 		 gint64 sector;
 
 		 if(erasure_map[location] == 3)  /* erasure came from CRC error */
-		 {  msg = _("-> CRC-predicted error in sector %lld%s at byte %4d (value %02x '%c', expected %02x '%c')\n");
+		 {  msg = _("-> CRC-predicted error in sector %" PRId64 "%s at byte %4d (value %02x '%c', expected %02x '%c')\n");
 		 }
 		 else
-		 {  msg = _("-> Non-predicted error in sector %lld%s at byte %4d (value %02x '%c', expected %02x '%c')\n");
+		 {  msg = _("-> Non-predicted error in sector %" PRId64 "%s at byte %4d (value %02x '%c', expected %02x '%c')\n");
 		    if(erasure_map[location] == 0) /* remember error location */
 		    {  erasure_map[location] = 7;
 		       error_count++;  
@@ -802,7 +807,7 @@ void RS03Fix(Image *image)
 	   {  PrintCLI(_("; ecc file: "));
               sep_printed = 1;
            }
-	   PrintCLI("%lld%c ", sec, type);
+	   PrintCLI("%" PRId64 "%c ", sec, type);
 
 	   /* Write the recovered sector */
 
@@ -815,12 +820,12 @@ void RS03Fix(Image *image)
 	      || i < ndata-1)
 	   {
 	      if(!LargeSeek(image->file, (gint64)(2048*sec)))
-		 Stop(_("Failed seeking to sector %lld in image [%s]: %s"),
+		 Stop(_("Failed seeking to sector %" PRId64 " in image [%s]: %s"),
 		      sec, "FW", strerror(errno));
 
 	      n = LargeWrite(image->file, cache_offset+fc->imgBlock[i], length);
 	      if(n != length)
-		 Stop(_("could not write medium sector %lld:\n%s"), sec, strerror(errno));
+		 Stop(_("could not write medium sector %" PRId64 ":\n%s"), sec, strerror(errno));
 	   }
 
 	   /* Write back into the error correction file
@@ -831,13 +836,13 @@ void RS03Fix(Image *image)
 	   if(lay->target == ECC_FILE && i >= ndata-1)
 	   {  
               if(!LargeSeek(image->eccFile, (gint64)(2048*sec)))
-		 Stop(_("Failed seeking to sector %lld in ecc file [%s]: %s"),
+		 Stop(_("Failed seeking to sector %" PRId64 " in ecc file [%s]: %s"),
 		      sec, "FW", strerror(errno));
 
-		 n = LargeWrite(image->eccFile, cache_offset+fc->imgBlock[i], 2048);
-		 if(n != 2048)
-		    Stop(_("could not write ecc file sector %lld:\n%s"),
-			 sec, strerror(errno));
+	      n = LargeWrite(image->eccFile, cache_offset+fc->imgBlock[i], 2048);
+	      if(n != 2048)
+		Stop(_("could not write ecc file sector %" PRId64 ":\n%s"),
+		     sec, strerror(errno));
 	   }
 	}
 	PrintCLI("\n");
@@ -865,7 +870,9 @@ skip:
      percent = (1000*s)/lay->sectorsPerLayer;
 
      if(last_percent != percent) 
-     {  if(Closure->guiMode)
+     {
+#ifdef WITH_GUI_YES
+        if(Closure->guiMode)
 	{  
 	   RS03AddFixValues(wl, percent, local_plot_max);
 	   local_plot_max = 0;
@@ -873,7 +880,9 @@ skip:
 	   //if(last_corrected != corrected || last_uncorrected != uncorrected) 
 	   RS03UpdateFixResults(wl, corrected, uncorrected);
 	}
-        else PrintProgress(_("Ecc progress: %3d.%1d%%"),percent/10,percent%10);
+        else
+#endif
+	  PrintProgress(_("Ecc progress: %3d.%1d%%"),percent/10,percent%10);
         last_percent = percent;
      }
 
@@ -887,15 +896,16 @@ skip:
 
    PrintProgress(_("Ecc progress: 100.0%%\n"));
 
-   if(corrected > 0) PrintLog(_("Repaired sectors: %lld (%lld data, %lld ecc)\n"),
-			      corrected, data_corr, ecc_corr);
+   if(corrected > 0)
+   {  PrintLog(_("Repaired sectors: %" PRId64 " (%" PRId64 " data, %" PRId64 " ecc)\n"),
+	       corrected, data_corr, ecc_corr);
+   }
    if(uncorrected > 0) 
-   {  PrintLog(_("Unrepaired sectors: %lld\n"), uncorrected);      
-      if(Closure->guiMode)
-        SwitchAndSetFootline(wl->fixNotebook, 1, wl->fixFootline,
-			     _("Image sectors could not be fully restored "
-			       "(%lld repaired; <span %s>%lld unrepaired</span>)"),
-			     corrected, Closure->redMarkup, uncorrected);
+   {  PrintLog(_("Unrepaired sectors: %" PRId64 "\n"), uncorrected);      
+      GuiSwitchAndSetFootline(wl->fixNotebook, 1, wl->fixFootline,
+			      _("Image sectors could not be fully restored "
+				"(%" PRId64 " repaired; <span %s>%" PRId64 " unrepaired</span>)"),
+			      corrected, Closure->redMarkup, uncorrected);
       exitCode = 2;
    }
    else
@@ -914,29 +924,30 @@ skip:
      PrintLog(_("Erasure counts per ecc block:  avg =  %.1f; worst = %d.\n"),
 	     (double)damaged_sectors/(double)damaged_eccsecs,worst_ecc);
 
-   if(Closure->guiMode && t)
-     SwitchAndSetFootline(wl->fixNotebook, 1, wl->fixFootline,
-			  "%s %s", _("Repair results:"), t);
-
+   if(t)
+   {  GuiSwitchAndSetFootline(wl->fixNotebook, 1, wl->fixFootline,
+			      "%s %s", _("Repair results:"), t);
+   }
+   
    Verbose("\nSummary of processed sectors:\n");
-   Verbose("%lld damaged sectors\n", damaged_sectors);
-   Verbose("%lld CRC errors\n", crc_errors);
-   Verbose("%lld of %lld ecc blocks damaged (%lld / %lld sectors)\n",
+   Verbose("%" PRId64 " damaged sectors\n", damaged_sectors);
+   Verbose("%" PRId64 " CRC errors\n", crc_errors);
+   Verbose("%" PRId64 " of %" PRId64 " ecc blocks damaged (%" PRId64 " / %" PRId64 " sectors)\n",
 	   damaged_eccblocks, 2048*lay->sectorsPerLayer,
 	   damaged_eccsecs, lay->sectorsPerLayer);
    if(data_count != (ndata-1)*lay->sectorsPerLayer)
-        g_printf("ONLY %lld of %lld data sectors processed\n", 
-		 (long long int)data_count, (long long int)(ndata-1)*lay->sectorsPerLayer);
+        g_printf("ONLY %" PRId64 " of %" PRId64 " data sectors processed\n", 
+		 data_count, (ndata-1)*lay->sectorsPerLayer);
    else Verbose("all data sectors processed\n");
 
    if(crc_count != lay->sectorsPerLayer)
-        g_printf("%lld of %lld crc sectors processed\n", 
-		 (long long int)crc_count, (long long int)lay->sectorsPerLayer);
+        g_printf("%" PRId64 " of %" PRId64 " crc sectors processed\n", 
+		 crc_count, lay->sectorsPerLayer);
    else Verbose("all  crc sectors processed\n");
 
    if(ecc_count != nroots*lay->sectorsPerLayer)
-        g_printf("%lld of %lld ecc sectors processed\n", 
-		 (long long int)ecc_count, (long long int)nroots*lay->sectorsPerLayer);
+        g_printf("%" PRId64 " of %" PRId64 " ecc sectors processed\n", 
+		 ecc_count, nroots*lay->sectorsPerLayer);
    else Verbose("all  ecc sectors processed\n");
 
    /*** Clean up */

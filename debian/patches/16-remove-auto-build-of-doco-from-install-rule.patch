@@ -24,10 +24,10 @@ index 6fda92b..d9bef11 100644
 -install: dvdisaster manual
 +install: dvdisaster
  	@echo "Installing package..."
- 	install -d $(BUILDROOT)$(BINDIR)
- 	install dvdisaster $(BUILDROOT)$(BINDIR)
- 	install -d $(BUILDROOT)$(DOCSUBDIR)
--	(cd documentation/user-manual; install -m 644 manual.pdf $(BUILDROOT)$(DOCSUBDIR))
- 	install -d $(BUILDROOT)$(MANDIR)/man1
- 	install -d $(BUILDROOT)$(MANDIR)/de/man1
+ 	install -d "$(BUILDROOT)$(BINDIR)"
+ 	install dvdisaster "$(BUILDROOT)$(BINDIR)"
+ 	install -d "$(BUILDROOT)$(DOCSUBDIR)"
+-	(cd documentation/user-manual; install -m 644 manual.pdf "$(BUILDROOT)$(DOCSUBDIR)")
+ 	install -d "$(BUILDROOT)$(MANDIR)/man1"
+ 	install -d "$(BUILDROOT)$(MANDIR)/de/man1"
  	cd documentation; \
