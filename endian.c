@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -62,7 +64,7 @@ guint64 SwapBytes64(guint64 in)
  */
 
 void print_hex(char *label, guint8 *values, int n)
-{  PrintCLI(label);
+{  PrintCLI("%s", label);
 
    while(n--)
      PrintCLI("%02x ",*values++);
@@ -84,7 +86,7 @@ void PrintEccHeader(EccHeader *eh)
    print_hex("mediumSum        ", eh->mediumSum, 16);
    print_hex("eccSum           ", eh->eccSum, 16);
    print_hex("sectors          ", eh->sectors, 8);
-   PrintCLI("sectors (native)  %lld\n", uchar_to_gint64(eh->sectors));
+   PrintCLI("sectors (native)  %" PRId64 "\n", uchar_to_gint64(eh->sectors));
    PrintCLI("dataBytes         %8x\n", eh->dataBytes);
    PrintCLI("eccBytes          %8x\n", eh->eccBytes);
    PrintCLI("creatorVersion    %8x\n", eh->creatorVersion);
@@ -93,8 +95,8 @@ void PrintEccHeader(EccHeader *eh)
    PrintCLI("selfCRC           %8x\n", eh->selfCRC);
    print_hex("crcSum            ", eh->crcSum, 16);
    PrintCLI("inLast            %8x\n", eh->inLast);
-   PrintCLI("sectorsPerLayer   %lld\n", eh->sectorsPerLayer);
-   PrintCLI("sectorsAddedByEcc %lld\n", eh->sectorsAddedByEcc);
+   PrintCLI("sectorsPerLayer   %" PRId64 "\n", eh->sectorsPerLayer);
+   PrintCLI("sectorsAddedByEcc %" PRId64 "\n", eh->sectorsAddedByEcc);
 
    PrintCLI("\n");
 }
@@ -114,11 +116,11 @@ void print_crc_block(CrcBlock *cb)
    PrintCLI("fpSector         %8x\n", cb->fpSector);
    print_hex("mediumFP         ", cb->mediumFP, 16);
    print_hex("mediumSum        ", cb->mediumSum, 16);
-   PrintCLI("dataSectors     %ll16x\n ",cb->dataSectors);
+   PrintCLI("dataSectors      %16" PRIx64 "\n",cb->dataSectors);
    PrintCLI("inLast           %8x\n", cb->inLast);
    PrintCLI("dataBytes        %8x\n", cb->dataBytes);
    PrintCLI("eccBytes         %8x\n", cb->eccBytes);
-   PrintCLI("sectorsPerLayer  %lld\n", cb->sectorsPerLayer);
+   PrintCLI("sectorsPerLayer  %" PRId64 "\n", cb->sectorsPerLayer);
    PrintCLI("selfCRC          %8x\n", cb->selfCRC);
 
    PrintCLI("\n");

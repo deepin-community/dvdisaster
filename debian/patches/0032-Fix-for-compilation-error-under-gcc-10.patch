@@ -22,18 +22,3 @@ Author: Stéphane Lesimple <speed47_debian@speed47.net>
  /*
   * The all-famous main() loop 
   */
---- a/dvdisaster.h
-+++ b/dvdisaster.h
-@@ -426,9 +426,9 @@
-  *** forward declarations
-  ***/
- 
--struct _RawBuffer *rawbuffer_forward;
--struct _DefectiveSectorHeader *dsh_forward;
--struct _DeviceHandle *dh_forward;
-+extern struct _RawBuffer *rawbuffer_forward;
-+extern struct _DefectiveSectorHeader *dsh_forward;
-+extern struct _DeviceHandle *dh_forward;
- 
- /***
-  *** bitmap.c

@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -55,7 +57,9 @@ typedef enum
    MODE_TRUNCATE,
    MODE_ZERO_UNREADABLE,
 
-   MODIFIER_ADAPTIVE_READ, 
+   /* don't use the ascii range 32-127 so that we
+      avoid collision with the single-char options */
+   MODIFIER_ADAPTIVE_READ = 128,
    MODIFIER_AUTO_SUFFIX,
    MODIFIER_CACHE_SIZE, 
    MODIFIER_CLV_SPEED,    /* unused */ 
@@ -73,6 +77,7 @@ typedef enum
    MODIFIER_IGNORE_FATAL_SENSE,
    MODIFIER_IGNORE_ISO_SIZE,
    MODIFIER_INTERNAL_REREADS,
+   MODIFIER_NO_PROGRESS,
    MODIFIER_OLD_DS_MARKER,
    MODIFIER_PREFETCH_SECTORS,
    MODIFIER_RANDOM_SEED,
@@ -80,6 +85,7 @@ typedef enum
    MODIFIER_READ_ATTEMPTS,
    MODIFIER_READ_MEDIUM,
    MODIFIER_READ_RAW,
+   MODIFIER_REGTEST,
    MODIFIER_RESOURCE_FILE,
    MODIFIER_SCREEN_SHOT,
    MODIFIER_SET_VERSION,
@@ -94,17 +100,19 @@ typedef enum
 int main(int argc, char *argv[])
 {  int mode = MODE_NONE; 
    int sequence = MODE_NONE;
-   int devices_queried = FALSE;
    char *debug_arg = NULL;
    char *read_range = NULL;
+   int debug_mode_required=FALSE;
 #ifdef WITH_NLS_YES
    char *locale_test;
  #ifdef WITH_EMBEDDED_SRC_PATH_YES
    char src_locale_path[strlen(SRCDIR)+10];
  #endif /* WITH_EMBEDDED_SRC_PATH_YES */
 #endif
-   int debug_mode_required=FALSE;
-
+#ifdef WITH_GUI_YES
+   int devices_queried = FALSE;
+#endif
+   
 #ifdef WITH_MEMDEBUG_YES
     atexit(check_memleaks);
 #endif
@@ -174,12 +182,7 @@ int main(int argc, char *argv[])
 	wrong packing. */
 
    if(sizeof(EccHeader) != 4096)
-     Stop("sizeof(EccHeader) is %d, but must be 4096.\n", sizeof(EccHeader));
-
-   /*** If we have too much command line options fail here */
-
-   if(MODIFIER_VERSION >= 'a')
-     Stop("Too many command line options\n");
+     Stop("sizeof(EccHeader) is %zu, but must be 4096.\n", sizeof(EccHeader));
 
    /*** CPU type detection. Must be done before parsing the options
         as some may be CPU-related. */
@@ -229,6 +232,7 @@ int main(int argc, char *argv[])
 	{"medium-info", 0, 0, MODE_MEDIUM_INFO },
 	{"merge-images", 1, 0, MODE_MERGE_IMAGES },
 	{"method", 2, 0, 'm' },
+	{"no-progress", 0, 0, MODIFIER_NO_PROGRESS },
 	{"old-ds-marker", 0, 0, MODIFIER_OLD_DS_MARKER },
 	{"prefetch-sectors", 1, 0, MODIFIER_PREFETCH_SECTORS },
         {"prefix", 1, 0, 'p'},
@@ -242,6 +246,7 @@ int main(int argc, char *argv[])
 	{"read-medium", 1, 0, MODIFIER_READ_MEDIUM },
 	{"read-sector", 1, 0, MODE_READ_SECTOR},
 	{"read-raw", 0, 0, MODIFIER_READ_RAW},
+	{"regtest", 0, 0, MODIFIER_REGTEST},
 	{"redundancy", 1, 0, 'n'},
 	{"resource-file", 1, 0, MODIFIER_RESOURCE_FILE},
 	{"scan", 2, 0,'s'},
@@ -318,6 +323,8 @@ int main(int argc, char *argv[])
 			   Closure->mediumSize = BD_SL_SIZE;
 		      else if(!strcmp(optarg, "BD2") || !strcmp(optarg, "bd2"))
 			   Closure->mediumSize = BD_DL_SIZE;
+		      else if(!strcmp(optarg, "BDXL3") || !strcmp(optarg, "bdxl3"))
+			   Closure->mediumSize = BDXL_TL_SIZE;
 		      else 
 		      {  int len = strlen(optarg);
 			 if(strchr("0123456789", optarg[len-1]))
@@ -479,6 +486,9 @@ int main(int argc, char *argv[])
 	    }
 	 }
 	   break;
+	 case MODIFIER_NO_PROGRESS:
+	    Closure->noProgress = 1;
+	    break;
 	 case MODIFIER_OLD_DS_MARKER:
 	    Closure->dsmVersion = 0;
 	    break;
@@ -486,7 +496,7 @@ int main(int argc, char *argv[])
  	    Closure->prefetchSectors = atoi(optarg);
 	    if(   Closure->prefetchSectors < 32
 	       || Closure->prefetchSectors > MAX_PREFETCH_CACHE_SIZE)
-	      Stop(_("--prefetch-sectors must be in range 32...%s"),
+	      Stop(_("--prefetch-sectors must be in range 32...%d"),
 		    MAX_PREFETCH_CACHE_SIZE);
 	    break;
          case MODIFIER_RANDOM_SEED:
@@ -524,6 +534,9 @@ int main(int argc, char *argv[])
 	   break;
          case MODIFIER_READ_RAW:
 	   Closure->readRaw = TRUE;
+	   break;
+         case MODIFIER_REGTEST:
+	   Closure->regtestMode = TRUE;
 	   break;
          case MODIFIER_RESOURCE_FILE:
 	   if(Closure->dotFile)
@@ -712,7 +725,9 @@ int main(int argc, char *argv[])
    if(!Closure->device && mode == MODE_SEQUENCE 
       && (sequence & (1<<MODE_READ | 1<<MODE_SCAN))) 
    {  Closure->device = DefaultDevice();
+#ifdef WITH_GUI_YES     
       devices_queried = TRUE;
+#endif
    }
 
    /*** Dispatch action depending on mode.
@@ -753,8 +768,8 @@ int main(int argc, char *argv[])
 	   }
 	   else 
 	   {  if(image->inLast == 2048)
-	           PrintLog(_(": %lld medium sectors.\n"), image->sectorSize);
-	      else PrintLog(_(": %lld medium sectors and %d bytes.\n"), 
+	           PrintLog(_(": %" PRId64 " medium sectors.\n"), image->sectorSize);
+	      else PrintLog(_(": %" PRId64 " medium sectors and %d bytes.\n"), 
 		   image->sectorSize-1, image->inLast);
 	   }
 	   image = OpenEccFileForImage(image, Closure->eccName, O_RDWR, IMG_PERMS);
@@ -867,7 +882,11 @@ int main(int argc, char *argv[])
 
    /*** If no mode was selected, print the help screen. */
 
+#ifdef WITH_GUI_YES
    if(mode == MODE_HELP)
+#else
+   if(mode == MODE_NONE || mode == MODE_HELP)
+#endif
    {  
      /* TRANSLATORS: Program options like -r and --read are not to be translated
 	to avoid confusion when discussing the program in international forums. */
@@ -914,15 +933,18 @@ int main(int argc, char *argv[])
       PrintCLI(_("  --ignore-iso-size      - ignore image size from ISO/UDF data (dangerous - see man page!)\n"));
       PrintCLI(_("  --internal-rereads n   - drive may attempt n rereads before reporting an error\n"));
       PrintCLI(_("  --medium-info          - print info about medium in drive\n"));
+      PrintCLI(_("  --no-progress          - do not print progress information\n"));
       PrintCLI(_("  --old-ds-marker        - mark missing sectors compatible with dvdisaster <= 0.70\n"));
       PrintCLI(_("  --prefetch-sectors n   - prefetch n sectors for RS03 encoding (uses ~nMiB)\n"));
       PrintCLI(_("  --raw-mode n           - mode for raw reading CD media (20 or 21)\n"));
-      PrintCLI(_("  --read-attempts n-m    - attempts n upto m reads of a defective sector\n"));
+      PrintCLI(_("  --read-attempts n-m    - attempts n up to m reads of a defective sector\n"));
       PrintCLI(_("  --read-medium n        - read the whole medium up to n times\n"));
       PrintCLI(_("  --read-raw             - performs read in raw mode if possible\n"));
+      PrintCLI(_("  --regtest              - tweaks output for compatibility with regtests\n"));
       PrintCLI(_("  --resource-file p      - get resource file from given path\n"));
       PrintCLI(_("  --speed-warning n      - print warning if speed changes by more than n percent\n"));
       PrintCLI(_("  --spinup-delay n       - wait n seconds for drive to spin up\n"));
+      PrintCLI(_("  --version              - print version and some configuration info\n"));
 
       if(Closure->debugMode)
       { PrintCLI("\n");
@@ -960,6 +982,7 @@ int main(int argc, char *argv[])
    /* If no mode was selected at the command line, 
       start the graphical user interface. */
 
+#ifdef WITH_GUI_YES
    if(mode == MODE_NONE)
    {  
       /* We need to query devices in order to build
@@ -984,10 +1007,11 @@ int main(int argc, char *argv[])
       }
 
       Closure->guiMode = TRUE;
-      ReadDotfile();
-      CreateMainWindow(&argc, &argv);
+      GuiReadDotfile();
+      GuiCreateMainWindow(&argc, &argv);
    }
-
+#endif
+   
    FreeClosure();
    exit(exitCode);
 }

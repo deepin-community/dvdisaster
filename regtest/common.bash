@@ -5,9 +5,18 @@ SETVERSION="0.80"
 DATABASE=./database
 RNDSEQ="./fixed-random-sequence"
 
+# directory for permanently storing test files
 ISODIR=/var/tmp/regtest
 if ! test -d $ISODIR; then
     echo "$ISODIR does not exist."
+    echo "Please create it manually, or edit common.bash"
+    exit 0
+fi
+
+# directory for temporary files; e.g. to keep them away from SSDs
+TMPDIR=/dev/shm
+if ! test -d $TMPDIR; then
+    echo "$TMPDIR does not exist."
     echo "Please create it manually, or edit common.bash"
     exit 0
 fi
@@ -29,6 +38,7 @@ fi
 # Assemble sed expressions for removal of variable output contents
 
 SED_REMOVE_ISO_DIR=$(echo "${ISODIR}/" | sed -e "s/\//\\\\\//g")
+SED_REMOVE_TMP_DIR=$(echo "${TMPDIR}/" | sed -e "s/\//\\\\\//g")
 SED_REMOVE_DEV_SHM=$(echo "/dev/shm/"  | sed -e "s/\//\\\\\//g")
 
 # Usage
@@ -105,10 +115,21 @@ function try()
    else
        cont_at="false"
    fi
-   
+
    doit=$(echo $doit | cut -d\  -f 2) 
 
    if test $doall = "yes" || test $doit = "yes"; then
+       # Clean up temporary files
+       if test -n "$TMPISO" && test -f "$TMPISO"; then
+	   rm -f $TMPISO
+       fi
+       if test -n "$TMPECC" && test -f "$TMPECC"; then
+	   rm -f $TMPECC
+       fi
+       if test -n "$SIMISO" && test -f "$SIMISO"; then
+	   rm -f $SIMISO
+       fi
+       
        echo -n "Test case: $1 - "
        return 0
    else
@@ -153,6 +174,14 @@ function run_regtest()
    local spawn_log_window=$(grep "SPAWN_LOG_WINDOW" $CONFIGFILE)
    spawn_log_window=$(echo $spawn_log_window | cut -d\  -f 2) 
 
+   local interactive_diff=$(grep "INTERACTIVE_DIFF" $CONFIGFILE)
+   interactive_diff=$(echo $interactive_diff | cut -d\  -f 2) 
+
+   if test "$#" != 4; then
+       echo -e "broken test case $1\n--> run_regtest: 4 arguments required to ensure deterministic test behaviour."
+       exit 1
+   fi
+   
    if test -n "${testecc}"; then
        testeccopt="-e ${testecc}"
    fi
@@ -162,8 +191,8 @@ function run_regtest()
    if test "$gui_mode" == "false"; then
      rm -f $NEWLOG
 
-     echo "LANG=en_EN.UTF-8 $NEWVER -i${testiso} ${testeccopt} ${extra_args} ${testparms}" >>$LOGFILE 
-     LANG=en_EN.UTF-8 $NEWVER -i${testiso} ${testeccopt} ${extra_args} ${testparms} 2>&1 | tail -n +3  >>$NEWLOG 
+     echo "LANG=en_EN.UTF-8 $NEWVER --regtest --no-progress -i${testiso} ${testeccopt} ${extra_args} ${testparms}" >>$LOGFILE 
+     LANG=en_EN.UTF-8 $NEWVER --regtest --no-progress -i${testiso} ${testeccopt} ${extra_args} ${testparms} 2>&1 | tail -n +4  >>$NEWLOG 
 
      if ! test -r $REFLOG; then
 	 echo -e "FAIL\n$REFLOG missing in log file database"
@@ -183,10 +212,28 @@ function run_regtest()
 	 mv $TMPLOG $NEWLOG
      fi
        
-     if ! diff <(tail -n +3 $REFLOG) <(sed -e "s/${SED_REMOVE_ISO_DIR}//g" $NEWLOG | sed -e "s/${SED_REMOVE_DEV_SHM}//g") >${DIFFLOG}; then
-	 echo "BAD; diffs found:"
+     if ! diff <(tail -n +3 $REFLOG) <(sed -e "s/${SED_REMOVE_ISO_DIR}//g" $NEWLOG | sed -e "s/${SED_REMOVE_TMP_DIR}//g") >${DIFFLOG}; then
+	 echo "BAD; diffs found (<expected; >created):"
 	 cat ${DIFFLOG}
-	 pass="false"
+
+	 if test "$interactive_diff" == "yes"; then
+	   echo
+	   read -n 1 -p ">> Press 'a' to accept this diff; 'i' to ignore; 'q' to fail this test: " -e answer
+	   if test "$answer" == "a"; then
+	       cp $REFLOG $LOGDIR
+	       head -n 2 $LOGDIR/${CODEC_PREFIX}_${testsymbol} >$REFLOG 
+	       sed -e "s/${SED_REMOVE_ISO_DIR}//g" $NEWLOG | sed -e "s/${SED_REMOVE_TMP_DIR}//g" >>$REFLOG
+	       pass="skip"
+	   else
+	       if test "$answer" == "i"; then
+		   pass="skip"
+	       else
+		   pass="false"
+	       fi
+	   fi
+	 else
+	   pass="false"
+	 fi
      fi
    else  # gui mode
        replace_config last-image "$testiso"
@@ -195,12 +242,12 @@ function run_regtest()
        fi
        
        if test "$spawn_log_window" == "yes"; then
-	   echo LANG=en_EN.UTF-8 $NEWVER $extra_args --resource-file $LOGDIR/.dvdisaster-regtest >$NEWLOG
+	   echo LANG=en_EN.UTF-8 $NEWVER --regtest $extra_args --resource-file $LOGDIR/.dvdisaster-regtest >$NEWLOG
 	   xterm -geometry +0+0 -e tail -n 50 -f $NEWLOG &
 	   xterm_pid=$!
        fi
 
-       LANG=en_EN.UTF-8 $NEWVER $extra_args --resource-file $LOGDIR/.dvdisaster-regtest >>$NEWLOG 2>&1
+       LANG=en_EN.UTF-8 $NEWVER --regtest $extra_args --resource-file $LOGDIR/.dvdisaster-regtest >>$NEWLOG 2>&1
        rm -f $LOGDIR/.dvdisaster-regtest
    fi
 
@@ -228,10 +275,16 @@ function run_regtest()
 	   pass="false"
        fi
    fi	   
-   
-   if test ${pass} == "true"; then
+
+   case "${pass}" in
+     true)
       echo "GOOD"
-   else
+      ;;
+     
+     skip)
+      ;;
+     
+     *)
       echo "test symbol for config: $testsymbol"
       if test "$fail_on_bad" == "yes"; then
 	next=$(grep -A 1  ${CODEC_PREFIX}_$testsymbol config.txt | tail -n 1 | cut -d\  -f 1)
@@ -245,7 +298,8 @@ function run_regtest()
 	fi
 	exit 1
       fi
-   fi
+      ;;
+   esac
 
    if test "$gui_mode" == "true" && test "$spawn_log_window" == "yes"; then
        read -n 1 -p "Press q to quit; any other key to continue." -e answer

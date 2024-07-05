@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -66,12 +68,12 @@ CrcBuf *RS01GetCrcBuf(Image *image)
 {  LargeFile *file = image->eccFile;
    CrcBuf *cb;
    guint32 *buf;
-   guint64 image_sectors;
+   guint64 image_sectors_from_ecc, image_sectors_with_crc;
    guint64 crc_sectors,crc_remainder;
    guint64 i,j,sec_idx;
 
-   image_sectors = uchar_to_gint64(image->eccFileHeader->sectors);
-   cb = CreateCrcBuf(image_sectors);
+   image_sectors_from_ecc = uchar_to_gint64(image->eccFileHeader->sectors);
+   cb = CreateCrcBuf(image);
    buf = cb->crcbuf;
 
    /* Seek to beginning of CRC sums */
@@ -81,7 +83,10 @@ CrcBuf *RS01GetCrcBuf(Image *image)
 
    /* Read crc sums. A sector of 2048 bytes contains 512 CRC sums. */
 
-   crc_sectors = image_sectors / 512;
+   if(cb->allSectors < image_sectors_from_ecc)
+        image_sectors_with_crc = cb->allSectors;         // image is truncated
+   else image_sectors_with_crc = image_sectors_from_ecc; // get all CRC sectors from ECC
+   crc_sectors = image_sectors_with_crc / 512;
    sec_idx = 0;
 
    for(i=0; i<crc_sectors; i++)
@@ -93,15 +98,21 @@ CrcBuf *RS01GetCrcBuf(Image *image)
 	 SetBit(cb->valid, sec_idx);
    }
 
-   crc_remainder = sizeof(guint32)*(image_sectors % 512);
+   crc_remainder = sizeof(guint32)*(image_sectors_with_crc % 512);
    if(crc_remainder)
    {  if(LargeRead(file, buf, crc_remainder) != crc_remainder)
 	 Stop(_("Error reading CRC information: %s"),strerror(errno));
 
-      for( ; sec_idx<image_sectors; sec_idx++)
+     for( ; sec_idx<image_sectors_with_crc; sec_idx++)
 	 SetBit(cb->valid, sec_idx);
    }
 
+   /* Copy the md5sum */
+
+   memcpy(cb->dataMD5sum, image->eccFileHeader->mediumSum, 16);
+   memcpy(cb->imageMD5sum, image->eccFileHeader->mediumSum, 16);
+   cb->md5State = MD5_COMPLETE;
+   
    return cb;
 }
 
@@ -163,7 +174,7 @@ void RS01ReadSector(Image *image, unsigned char *buf, gint64 s)
   {  int n,expected;
 	
      if(!LargeSeek(image->file, (gint64)(2048*s)))
-       Stop(_("Failed seeking to sector %lld in image: %s"),
+       Stop(_("Failed seeking to sector %" PRId64 " in image: %s"),
 	    s, strerror(errno));
 
      /* Prepare for short reads at the last image sector.
@@ -179,7 +190,7 @@ void RS01ReadSector(Image *image, unsigned char *buf, gint64 s)
 
      n = LargeRead(image->file, buf, expected);
      if(n != expected)
-       Stop(_("Failed reading sector %lld in image: %s"),s,strerror(errno));
+       Stop(_("Failed reading sector %" PRId64 " in image: %s"),s,strerror(errno));
   }
 }
 
@@ -197,23 +208,27 @@ void RS01ReadSector(Image *image, unsigned char *buf, gint64 s)
 #define CRCBUFSIZE (1024*256)
 
 void RS01ScanImage(Method *method, Image* image, struct MD5Context *ecc_ctxt, int mode)
-{  RS01Widgets *wl = NULL;
-   unsigned char buf[2048];
+{  unsigned char buf[2048];
    guint32 *crcbuf = NULL;
    int unrecoverable_sectors = 0;
    int crcidx = 0;
    struct MD5Context image_md5;
    gint64 s, first_missing, last_missing;
-   gint64 prev_missing = 0;
-   gint64 prev_crc_errors = 0;
    int last_percent,current_missing;
    char *msg;
+#ifdef WITH_GUI_YES
+   RS01Widgets *wl = NULL;
+   gint64 prev_crc_errors = 0;
+   gint64 prev_missing = 0;
+#endif
 
+#ifdef WITH_GUI_YES
    /* Extract widget list from method */
 
    if(method->widgetList)
      wl = (RS01Widgets*)method->widgetList;
-
+#endif
+   
    /* Position behind the ecc file header,
       initialize CRC buffer pointers */
 
@@ -287,8 +302,8 @@ void RS01ScanImage(Method *method, Image* image, struct MD5Context *ecc_ctxt, in
 	if(!current_missing || s==image->sectorSize-1)
 	{  if(first_missing>=0)
 	    {   if(first_missing == last_missing)
-		     PrintCLI(_("* missing sector   : %lld\n"), first_missing);
-		else PrintCLI(_("* missing sectors  : %lld - %lld\n"), first_missing, last_missing);
+		     PrintCLI(_("* missing sector   : %" PRId64 "\n"), first_missing);
+		else PrintCLI(_("* missing sectors  : %" PRId64 " - %" PRId64 "\n"), first_missing, last_missing);
 	      first_missing = -1;
 	   }
 	}
@@ -335,7 +350,7 @@ void RS01ScanImage(Method *method, Image* image, struct MD5Context *ecc_ctxt, in
 	    }
 
 	    if(crc != crcbuf[crcidx++] && !current_missing)
-	    {  PrintCLI(_("* CRC error, sector: %lld\n"), s);
+	    {  PrintCLI(_("* CRC error, sector: %" PRId64 "\n"), s);
 	       image->crcErrors++;
 	    }
 	 }
@@ -345,12 +360,16 @@ void RS01ScanImage(Method *method, Image* image, struct MD5Context *ecc_ctxt, in
 
       if(Closure->guiMode && mode & PRINT_MODE) 
 	   percent = (VERIFY_IMAGE_SEGMENTS*(s+1))/image->sectorSize;
-      else percent = (100*(s+1))/image->sectorSize;
+      else
+	   percent = (100*(s+1))/image->sectorSize;
+
       if(last_percent != percent) 
       {  PrintProgress(msg,percent);
 
+#ifdef WITH_GUI_YES	
          if(Closure->guiMode && mode & CREATE_CRC)
-	   SetProgress(wl->encPBar1, percent, 100);
+	 {  GuiSetProgress(wl->encPBar1, percent, 100);
+	 }
 
 	 if(Closure->guiMode && mode & PRINT_MODE)
  	 {  RS01AddVerifyValues(method, percent, image->sectorsMissing, image->crcErrors,
@@ -360,7 +379,7 @@ void RS01ScanImage(Method *method, Image* image, struct MD5Context *ecc_ctxt, in
 	    prev_missing = image->sectorsMissing;
 	    prev_crc_errors = image->crcErrors;
 	 }
-
+#endif /* WITH_GUI_YES */
 	 last_percent = percent;
       }
    }

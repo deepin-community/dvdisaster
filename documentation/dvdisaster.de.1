@@ -1,4 +1,4 @@
-.TH DVDISASTER 1 "2015-12-16" "0.79.5" "Schutz f\[:u]r optische Datentr\[:a]ger"
+.TH DVDISASTER 1 "2018-05-14" "0.79.7" "Schutz f\[:u]r optische Datentr\[:a]ger"
 
 .SH NAME
 DVDISASTER \- Schutz f\[:u]r optische Datentr\[:a]ger gegen Datenverlust durch Alterung
@@ -49,6 +49,7 @@ oder Kratzer
 .RB [\| \-\-internal-rereads
 .IR n \|]
 .RB [\| \-\-medium-info \|]
+.RB [\| \-\-no-progress \|]
 .RB [\| \-\-old-ds-marker \|]
 .RB [\| \-\-prefetch-sectors
 .IR n \|]
@@ -59,12 +60,14 @@ oder Kratzer
 .RB [\| \-\-read-medium
 .IR n \|]
 .RB [\| \-\-read-raw \|]
+.RB [\| \-\-regtest \|]
 .RB [\| \-\-resource-file
 .IR n \|]
 .RB [\| \-\-speed-warning
 .IR n \|]
 .RB [\| \-\-spinup\-delay
 .IR n \|]
+.RB [\| \-\-version \|]
 
 .SH BESCHREIBUNG
 .B DVDISASTER
@@ -213,28 +216,31 @@ RS01-Fehlerkorrektur-Dateien unterst\[:u]tzen au\[ss]erdem:
 .RS
 RS02-Abbilder:
 .RS
-\-n CD\ \ \ erweitert Abbild auf CD-Gr\[:o]\[ss]e.
+\-n CD\ \ \ \ erweitert Abbild auf CD-Gr\[:o]\[ss]e.
 .RE
 .RS
-\-n DVD\ \ erweitert Abbild auf DVD-Gr\[:o]\[ss]e.
+\-n DVD\ \ \ erweitert Abbild auf DVD-Gr\[:o]\[ss]e.
 .RE
 .RS
-\-n DVD9 erweitert Abbild auf DVD9-Gr\[:o]\[ss]e.
+\-n DVD9\  erweitert Abbild auf DVD9-Gr\[:o]\[ss]e.
 .RE
 .RS
-\-n BD\ \ \ erweitert Abbild auf BD-Gr\[:o]\[ss]e.
+\-n BD\ \ \ \ erweitert Abbild auf BD-Gr\[:o]\[ss]e.
 .RE
 .RS
-\-n BD2\  erweitert Abbild auf zweilagige BD-Gr\[:o]\[ss]e.
+\-n BD2\ \  erweitert Abbild auf zweilagige BD-Gr\[:o]\[ss]e.
 .RE
 .RS
-\-n x\ \ \ \ erweitert Abbild auf ca. x Sektoren L\[:a]nge.
+\-n BDXL3 erweitert Abbild auf dreilagige BDXL-Gr\[:o]\[ss]e.
 .RE
 .RS
-\-n x%\ \ \ erweitert Abbild mit ca. x% Redundanz. 
+\-n x\ \ \ \ \ erweitert Abbild auf ca. x Sektoren L\[:a]nge.
 .RE
 .RS
-\-n xr\ \ \ erweitert Abbild mit x Nullstellen Fehlerkorrektur-Daten.
+\-n x%\ \ \ \ erweitert Abbild mit ca. x% Redundanz. 
+.RE
+.RS
+\-n xr\ \ \ \ erweitert Abbild mit x Nullstellen Fehlerkorrektur-Daten.
 .RE
 .RE
 
@@ -329,7 +335,7 @@ funktioniert am besten beim direkten Arbeiten mit Dateien im Arbeitsspeicher (z.
 .RE
 .TP
 .B \-\-fill-unreadable n
-f\[:u]lle unlesbare Sektoren mit Byte n.
+f\[:u]lle unlesbare Sektoren mit Byte n. Hilfreich um Abbilder zu verarbeiten, die von anderen Werkzeugen angelegt wurden. Beispielsweise f\[:u]llt ddrescue unlesbare Sektoren mit Null auf; dementsprechend w\[:a]re \-\-fill-unreadable=0 zu verwenden. Bitte dabei beachten: Sparse files k\[:o]nnen nicht mit dvdisaster verarbeitet werden.
 .TP
 .B \-\-ignore-fatal-sense
 Lesen nach m\[:o]glicherweise schwerwiegenden Fehlern fortsetzen.
@@ -363,6 +369,9 @@ die Standardeinstellungen des Laufwerks zu verwenden.
 .TP
 .B \-\-medium-info
 Gibt Informationen \[:u]ber den Datentr\[:a]ger im ausgew\[:a]hlten Laufwerk aus.
+.TP
+.B \-\-no-progress
+Unterdr\[:u]ckt die Fortschrittsanzeige in Prozent.
 .TP
 .B \-\-old-ds-marker
 Markiert fehlende Sektoren in einer Weise, die mit dvdisaster
@@ -403,6 +412,9 @@ liest den gesamten Datentr\[:a]ger bis zu n-mal.
 .B \-\-read-raw
 liest in der "raw"\-Betriebsart sofern m\[:o]glich.
 .TP
+.B \-\-regtest
+ver\[:a]ndert einige Ausgaben so da\[ss] sie von den Regressionstest-Skripten besser verarbeitet werden k\[:o]nnen.
+.TP
 .B \-\-resource-file n
 Gibt den Pfad zur Konfigurationsdatei an (Voreinstellung: $HOME/.dvdisaster)
 .TP
@@ -411,6 +423,9 @@ warnt bei Geschwindigkeits\[:a]nderung um mehr als n Prozent.
 .TP
 .B \-\-spinup-delay n
 gibt dem Laufwerk n Sekunden Zeit zum Hochlaufen.
+.TP
+.B \-\-version
+gibt die Versionsnummer und einige Konfigurationseigenschaften aus
 .PP
 
 .SH SIEHE AUCH
@@ -420,8 +435,10 @@ DVDISASTER ist in seinem eigenen Handbuch dokumentiert, welches in
 installiert ist.
 
 .SH AUTHOR
-DVDISASTER wurde von Carsten Gnoerlich <carsten@dvdisaster.com> geschrieben.
+DVDISASTER wurde von Carsten Gn\[:o]rlich <carsten@dvdisaster.com> geschrieben.
+Seit Version 0.79.7 wird es vom dvdisaster-Entwickler-Team betreut <support@dvdisaster.org>.
+
 .PP
 Diese Hilfeseite wurde von Daniel Baumann <daniel.baumann@panthera-systems.net>
-f\[:u]r das Debian Projekt geschrieben (kann aber auch von Anderen verwendet
-werden). Sie wird seit Version 0.70 von Carsten Gn\[:o]rlich gepflegt.
+f\[:u]r das Debian-Projekt geschrieben (kann aber auch von Anderen verwendet
+werden). Sie wurde seit Version 0.70 von Carsten Gn\[:o]rlich gepflegt und wird zur Zeit vom dvdisaster-Entwickler-Team betreut.

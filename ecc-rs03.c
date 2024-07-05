@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -38,7 +40,7 @@ void register_rs03(void)
 
    /*** Standard infomation and methods */ 
 
-   strncpy(method->name, "RS03", 4);
+   memcpy(method->name, "RS03", 4);
    method->menuEntry = g_strdup(_("Multithreaded RS codec (RS03)"));
    method->description = g_strdup(_("Multithreaded Reed-Solomon codec for error correction files and augmented images"));
    method->create  = RS03Create;
@@ -55,6 +57,9 @@ void register_rs03(void)
    method->recognizeEccFile  = RS03RecognizeFile;
    method->recognizeEccImage = RS03RecognizeImage;
 
+   method->widgetList = g_malloc0(sizeof(RS03Widgets));
+
+#ifdef WITH_GUI_YES
    /*** Linkage to rs03-window.c */
 
    method->createCreateWindow = CreateRS03EncWindow;
@@ -71,7 +76,8 @@ void register_rs03(void)
 
    method->createVerifyWindow = CreateRS03VerifyWindow;
    method->resetVerifyWindow  = ResetRS03VerifyWindow;
-
+#endif /* WITH_GUI_YES */
+   
    /*** Register ourself */
 
    method->destroy = destroy;
@@ -88,14 +94,14 @@ static void destroy(Method *method)
    g_free(method->ckSumClosure);
 
    if(wl)
-   {  if(wl->fixCurve) FreeCurve(wl->fixCurve);
-
-      if(wl->cmpSpiral)
-	FreeSpiral(wl->cmpSpiral);
+   {
+#ifdef WITH_GUI_YES
+      GuiFreeCurve(wl->fixCurve);
+      GuiFreeSpiral(wl->cmpSpiral);
 
       if(wl->cmpLayout)
 	g_object_unref(wl->cmpLayout);
-
+#endif
       g_free(wl);
    }
 }

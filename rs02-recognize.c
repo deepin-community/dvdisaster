@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,6 +20,8 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: some GUI code ***/
+
 #include "dvdisaster.h"
 
 #include "rs02-includes.h"
@@ -32,13 +34,13 @@
 /*
  * Dialog components for disabling RS02 search
  */
-
+#ifdef WITH_GUI_YES
 static void no_rs02_cb(GtkWidget *widget, gpointer data)
 {  int state  = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
   
    Closure->examineRS02 = !state;
 
-   UpdatePrefsExhaustiveSearch();
+   GuiUpdatePrefsExhaustiveSearch();
 }
 
 static void insert_buttons(GtkDialog *dialog)
@@ -59,6 +61,7 @@ static void insert_buttons(GtkDialog *dialog)
    gtk_widget_show(align);
    gtk_widget_show(check);
 } 
+#endif /* WITH_GUI_YES */
 
 /*
  * See whether a given header is valid for RS02
@@ -75,7 +78,7 @@ static int try_sector(Image *image, gint64 pos, EccHeader **ehptr, unsigned char
 
    /* Try reading the sector */
 
-   Verbose("try_sector: trying sector %lld\n", pos);
+   Verbose("try_sector: trying sector %" PRId64 "\n", pos);
 
    if(ImageReadSectors(image, secbuf, pos, 2) != 2)
    {  Verbose("try_sector: read error, trying next header\n");
@@ -101,7 +104,7 @@ static int try_sector(Image *image, gint64 pos, EccHeader **ehptr, unsigned char
 	  return TRY_NEXT_MODULO;
       }
    }
-   else Verbose("try_sector: header at %lld: magic cookie found\n", (long long int)pos);
+   else Verbose("try_sector: header at %" PRId64 ": magic cookie found\n", pos);
 
    /* Calculate CRC */
 
@@ -242,7 +245,7 @@ int RS02Recognize(Image *image)
    while(header_modulo >= 32)
    {  pos = max_sectors & ~(header_modulo - 1);
 
-      Verbose("FindHeaderInMedium: Trying modulo %lld\n", header_modulo);
+      Verbose("FindHeaderInMedium: Trying modulo %" PRId64 "\n", header_modulo);
 
       while(pos > 0)
       {  int result;
@@ -251,12 +254,12 @@ int RS02Recognize(Image *image)
 	   goto bail_out;
 
 	 if(GetBit(try_next_header, pos))
-	 {  Verbose("Sector %lld cached; skipping\n", pos);
+	 {  Verbose("Sector %" PRId64 " cached; skipping\n", pos);
 	    goto check_next_header;
 	 }
 
 	 if(GetBit(try_next_modulo, pos))
-	 {  Verbose("Sector %lld cached; skipping modulo\n", pos);
+	 {  Verbose("Sector %" PRId64 " cached; skipping modulo\n", pos);
 	     goto check_next_modulo;
 	 }
 
@@ -267,12 +270,13 @@ int RS02Recognize(Image *image)
 	       SetBit(try_next_header, pos);
 	       read_count++;
 	       if(!answered_continue && read_count > 5)
-	       {  if(Closure->guiMode)
-    		  {  int answer = ModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, insert_buttons,
-					      _("Faster medium initialization\n\n"
-						"Searching this medium for error correction data may take a long time.\n"
-						"Press \"Skip RS02 test\" if you are certain that this medium was\n"
-						"not augmented with RS02 error correction data."));
+	       {
+		  if(Closure->guiMode)
+    		  {  int answer = GuiModalDialog(GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, insert_buttons,
+						 _("Faster medium initialization\n\n"
+						   "Searching this medium for error correction data may take a long time.\n"
+						   "Press \"Skip RS02 test\" if you are certain that this medium was\n"
+						   "not augmented with RS02 error correction data."));
 		 
 		    if(answer) goto bail_out;
 		    answered_continue = TRUE;

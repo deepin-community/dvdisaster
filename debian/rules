@@ -6,7 +6,6 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 export DEB_CFLAGS_MAINT_APPEND = $(CPPFLAGS) -Wall -Wno-deprecated-declarations -pedantic
-export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
 include /usr/share/dpkg/pkg-info.mk
 export DEB_VERSION
@@ -41,6 +40,7 @@ override_dh_auto_configure:
 		--localedir=share/locale \
 		--docdir=share/doc \
 		--docsubdir=dvdisaster \
+		--with-gui=no \
 		--with-embedded-src-path=no
 
 override_dh_auto_build-arch:
@@ -63,13 +63,10 @@ override_dh_auto_install-arch:
 override_dh_auto_install-indep:
 	true
 
-# Ensure that none of the text files that the application
+# Ensure that none of the files that the application
 # tries to display directly are compressed, as it doesn't
-# automatically decompress text files.
+# automatically decompress files.
 override_dh_compress-arch:
-	dh_compress -p dvdisaster \
-		-Xchangelog -XCREDITS -XREADME.MODIFYING -XTODO
-	gzip -9n debian/dvdisaster/usr/share/doc/dvdisaster/changelog.Debian
-
-override_dh_installchangelogs-arch:
-	dh_installchangelogs -p dvdisaster -k
+	dh_compress -p dvdisaster -XCHANGELOG -XCREDITS.en -XTODO
+override_dh_compress-indep:
+	dh_compress -p dvdisaster-doc -Xmanual.pdf

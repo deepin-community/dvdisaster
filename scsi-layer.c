@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
- *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
+ * 
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -46,7 +48,7 @@ AlignedBuffer* CreateAlignedBuffer(int size)
 {  AlignedBuffer *ab = g_malloc0(sizeof(AlignedBuffer));
 
    ab->base = g_malloc(size+4096);
-   ab->buf  = ab->base + (4096 - ((unsigned long)ab->base & 4095));
+   ab->buf  = ab->base + (4096 - ((intptr_t)ab->base & 4095));
 
    return ab;
 }
@@ -587,6 +589,9 @@ static int query_cd(DeviceHandle *dh, int probe_only)
    dh->sessions = buf[3];
    Verbose("#CD: %d sessions\n", dh->sessions);
 
+   if(dh->typeDescr)  /* dh may have been reused; avoid memleak */
+     g_free(dh->typeDescr);
+     
    if(control & 4)
      switch(buf[13])
      {  case 0x00: dh->typeDescr = g_strdup_printf("%s mode 1", dh->profileDescr); dh->subType = DATA1; break;
@@ -692,7 +697,7 @@ static int query_dvd(DeviceHandle *dh, int probe_only)
       dh->userAreaSize = (gint64)(ua_end-ua_start);
 
       if(dh->userAreaSize < 0 || dh->userAreaSize > MAX_DVD_SL_SIZE)
-      {  LogWarning(_("READ DVD STRUCTURE: implausible medium size, %lld-%lld=%lld sectors\n"),
+      {  LogWarning(_("READ DVD STRUCTURE: implausible medium size, %" PRId64 "-%" PRId64 "=%" PRId64 " sectors\n"),
 		    (gint64)ua_end, (gint64)ua_start, (gint64)dh->userAreaSize);
 	 dh->userAreaSize = 0;
       }
@@ -702,7 +707,7 @@ static int query_dvd(DeviceHandle *dh, int probe_only)
       dh->userAreaSize = (gint64)(ua_end0-ua_start)*2;
 
       if(dh->userAreaSize < 0 || dh->userAreaSize > MAX_DVD_DL_SIZE)
-      {  LogWarning(_("READ DVD STRUCTURE: implausible medium size, %lld-%lld=%lld sectors\n"),
+      {  LogWarning(_("READ DVD STRUCTURE: implausible medium size, %" PRId64 "-%" PRId64 "=%" PRId64 " sectors\n"),
 		    (gint64)ua_end0, (gint64)ua_start, (gint64)dh->userAreaSize);
 	 dh->userAreaSize = 0;
       }
@@ -1160,7 +1165,7 @@ static int query_type(DeviceHandle *dh, int probe_only)
  * and the blank disc capacity.
  */
 
-static int query_blank(DeviceHandle *dh)
+int QueryBlankCapacity(DeviceHandle *dh)
 {  AlignedBuffer *ab = CreateAlignedBuffer(4096);
    unsigned char *buf = ab->buf;
    unsigned char cmd[MAX_CDB_SIZE];
@@ -1339,7 +1344,7 @@ static int query_blank(DeviceHandle *dh)
 	    {  gint64 size;
 	       
 	       size = (gint64)(buf[idx]<<24 | buf[idx+1]<<16 | buf[idx+2]<<8 | buf[idx+3]);
-	       Verbose("#DVD: Cap list %d - type %x, size %lld\n", i, buf[idx+4]>>2, size);
+	       Verbose("#DVD: Cap list %d - type %x, size %" PRId64 "\n", i, buf[idx+4]>>2, size);
 	       
 	       switch(buf[idx+4]>>2)  /* format type */
 	       {  case 0x00:  /* all media */
@@ -1409,7 +1414,7 @@ static int query_blank(DeviceHandle *dh)
 	       
 	 size = (gint64)(buf[idx]<<24 | buf[idx+1]<<16 | buf[idx+2]<<8 | buf[idx+3]);
 	 sa_size = buf[idx+5]<<16 | buf[idx+6]<<8 | buf[idx+7];
-	 Verbose("#BD: Cap list %d - type %x, size %lld, spare %d\n", 
+	 Verbose("#BD: Cap list %d - type %x, size %" PRId64 ", spare %d\n", 
 		 i, buf[idx+4]>>2, size, sa_size);
 	       
 	 switch(buf[idx+4]>>2)  /* format type */
@@ -1738,8 +1743,8 @@ static int check_sector(DeviceHandle *dh, GString *msg_out, guint64 sector, int 
    }
 
    if(n_sectors == 1)
-        g_string_append_printf(msg_out, _("Sector %lld: %s\n"), sector, msg);
-   else g_string_append_printf(msg_out, _("Sectors %lld-%lld: %s\n"), 
+        g_string_append_printf(msg_out, _("Sector %" PRId64 ": %s\n"), sector, msg);
+   else g_string_append_printf(msg_out, _("Sectors %" PRId64 "-%" PRId64 ": %s\n"), 
 			       sector, sector+n_sectors-1, msg);
 
    return result;
@@ -1804,7 +1809,7 @@ static void read_capacity(Image *image)
    }
 
    dh->readCapacity = (gint64)(buf[0]<<24 | buf[1]<<16 | buf[2]<<8 | buf[3]);
-   Verbose(" -> %lld\n", dh->readCapacity);
+   Verbose(" -> %" PRId64 "\n", dh->readCapacity);
    FreeAlignedBuffer(ab);
 
    /*** Validate capacity */
@@ -1819,7 +1824,7 @@ static void read_capacity(Image *image)
       implausible = TRUE;
 
    if(implausible && !dh->simImage)
-   {  LogWarning(_("READ CAPACITY: implausible medium size, %lld sectors\n"), 
+   {  LogWarning(_("READ CAPACITY: implausible medium size, %" PRId64 " sectors\n"), 
 		 (gint64)dh->readCapacity);
       dh->readCapacity = 0;
    }
@@ -1839,7 +1844,7 @@ static gint64 query_size(Image *image)
 	for the medium size. */
 
    if(image->expectedSectors > 0) 
-   {  Verbose("Medium size obtained from ECC header: %lld sectors\n", image->expectedSectors);  
+   {  Verbose("Medium size obtained from ECC header: %" PRId64 " sectors\n", image->expectedSectors);  
       return image->expectedSectors;
    }
    else Verbose("Medium size could NOT be determined from ECC header.\n");
@@ -1863,7 +1868,7 @@ static gint64 query_size(Image *image)
    /* For CD media, thats all we have to do */
 
    if(dh->mainType == CD)
-   {  Verbose("CD medium - using size from READ CAPACITY: %lld sectors\n", dh->readCapacity+1);
+   {  Verbose("CD medium - using size from READ CAPACITY: %" PRId64 " sectors\n", dh->readCapacity+1);
       return dh->readCapacity+1;  /* size is the number of the last sector, starting with 0 */
    }
 
@@ -1871,7 +1876,7 @@ static gint64 query_size(Image *image)
       work as unformatted sectors can be always read. Stick with READ CAPACITY. */
 
    if(dh->mainType == BD)
-   {  Verbose("BD medium - using size from READ CAPACITY: %lld sectors\n", dh->readCapacity+1);
+   {  Verbose("BD medium - using size from READ CAPACITY: %" PRId64 " sectors\n", dh->readCapacity+1);
       return dh->readCapacity+1;  /* size is the number of the last sector, starting with 0 */
    }
 
@@ -1881,7 +1886,7 @@ static gint64 query_size(Image *image)
       so we have to be careful here. */
 
    if(dh->readCapacity == dh->userAreaSize)  /* If they are equal just return one */
-   {  Verbose("READ CAPACITY and READ DVD STRUCTURE agree: %lld sectors\n", dh->readCapacity+1);
+   {  Verbose("READ CAPACITY and READ DVD STRUCTURE agree: %" PRId64 " sectors\n", dh->readCapacity+1);
       return dh->readCapacity+1;  
    }
    else                                   /* Tricky case. Try some heuristics. */
@@ -1896,8 +1901,8 @@ static gint64 query_size(Image *image)
       warning = g_string_sized_new(1024);
       g_string_printf(warning,
 		      _("Different media sizes depending on query method:\n"
-			"READ CAPACITY:      %lld sectors\n"
-			"READ DVD STRUCTURE: %lld sectors\n\n"),
+			"READ CAPACITY:      %" PRId64 " sectors\n"
+			"READ DVD STRUCTURE: %" PRId64 " sectors\n\n"),
 		      dh->readCapacity+1, dh->userAreaSize+1);
 
       g_string_append(warning, _("Evaluation of returned medium sizes:\n\n"));
@@ -1975,7 +1980,7 @@ static gint64 query_size(Image *image)
       }
 
       g_string_append_printf(warning, _("Final decision: %s\n\n"), decision_msg);
-      LogWarning(warning->str);
+      LogWarning("%s", warning->str);
 
       g_string_free(warning, TRUE);
 
@@ -2027,7 +2032,7 @@ gint64 CurrentMediumSize(int get_blank_size)
    /* We can return either the image size or the size of  blank media. */
 
    if(get_blank_size)
-   {  if(!query_blank(image->dh))
+   {  if(!QueryBlankCapacity(image->dh))
       {  CloseImage(image);
 	 return 0;
       }
@@ -2168,8 +2173,8 @@ int TestUnitReady(DeviceHandle *dh)
       cmd[0] = 0x00;     /* TEST UNIT READY */
 
       if(SendPacket(dh, cmd, 6, NULL, 0, &dh->sense, DATA_NONE) != -1)
-      {  if(Closure->guiMode)
-	    SetLabelText(Closure->status, "");
+      {
+	 GuiSetLabelText(Closure->status, "");
 	 return TRUE;
       }
 
@@ -2198,9 +2203,7 @@ int TestUnitReady(DeviceHandle *dh)
       break;  /* Something is wrong with the drive */
    }
 
-   if(Closure->guiMode)
-      SetLabelText(Closure->status, "");
-
+   GuiSetLabelText(Closure->status, "");
    return FALSE;
 }
 
@@ -2263,22 +2266,6 @@ static int read_cd_sector(DeviceHandle *dh, unsigned char *buf, int lba, int nse
    cmd[11] = 0;    /* no special wishes for the control byte */
 
    ret = SendPacket(dh, cmd, 12, buf, 2048*nsectors, sense, DATA_READ);
-
-#if 0
-#define BORK 34999
-   if(lba<=BORK && BORK<lba+nsectors)  /* fixme */
-     {  int offset = 2048*(BORK-lba);
-      buf[offset+240]^=255;
-  }
-#endif
-
-#if 0
-#define BORK2 300
-   if(lba<=BORK2 && BORK2<lba+nsectors)  /* fixme */
-     {  int offset = 2048*(BORK2-lba);
-      buf[offset+240]^=255;
-  }
-#endif
 
    if(ret<0) RememberSense(sense->sense_key, sense->asc, sense->ascq);
    return ret;
@@ -2465,7 +2452,7 @@ int ReadSectors(DeviceHandle *dh, unsigned char *buf, gint64 s, int nsectors)
       if(Closure->readRaw && dh->rawBuffer)
 	recommended_attempts = dh->rawBuffer->recommendedAttempts;
 
-      if(status)  /* current try was unsucessful */
+      if(status)  /* current try was unsuccessful */
       {  int last_key, last_asc, last_ascq;
 
 	 if(Closure->stopActions)  /* user break */
@@ -2478,7 +2465,7 @@ int ReadSectors(DeviceHandle *dh, unsigned char *buf, gint64 s, int nsectors)
 //	 if(dh->canReadDefective && nsectors > 1 && Closure->sectorSkip == 0)
 	 if(nsectors > 1 && Closure->sectorSkip == 0)
 	 {  PrintCLIorLabel(Closure->status,
-			    _("Sectors %lld - %lld: %s\n"),
+			    _("Sectors %" PRId64 " - %" PRId64 ": %s\n"),
 			    s, s+nsectors-1, GetLastSenseString(FALSE));
 	    return status;
 	 }
@@ -2492,13 +2479,13 @@ int ReadSectors(DeviceHandle *dh, unsigned char *buf, gint64 s, int nsectors)
 	 if(last_key == 3 && last_asc == 255 && last_ascq == 2 && dh->rawBuffer)
 	 {  unsigned char *frame = dh->rawBuffer->workBuf->buf;
 	    PrintCLIorLabel(Closure->status,
-			    _("Sector %lld, try %d: %s Sector returned: %d.\n"),
+			    _("Sector %" PRId64 ", try %d: %s Sector returned: %d.\n"),
 			    s, retry, GetLastSenseString(FALSE),
 			    MSFtoLBA(frame[12], frame[13], frame[14]));
 	 }
 	 else
 	    PrintCLIorLabel(Closure->status,
-			    _("Sector %lld, try %d: %s\n"),
+			    _("Sector %" PRId64 ", try %d: %s\n"),
 			    s, retry, GetLastSenseString(FALSE));
 
 	 /* Last attempt; create failure notice */
@@ -2509,7 +2496,7 @@ int ReadSectors(DeviceHandle *dh, unsigned char *buf, gint64 s, int nsectors)
       else /* good return status */
       {  if(recommended_attempts > 1 && retry > 1)
 	  PrintCLIorLabel(Closure->status,
-			  _("Sector %lld, try %d: success\n"), s, retry);
+			  _("Sector %" PRId64 ", try %d: success\n"), s, retry);
 
          break;
       }
@@ -2676,7 +2663,7 @@ Image* OpenImageFromDevice(char *device)
 
    Verbose("# Calling query_size()\n");
    dh->sectors = query_size(image);
-   Verbose("# returned: %lld sectors\n", dh->sectors); 
+   Verbose("# returned: %" PRId64 " sectors\n", dh->sectors); 
 
    switch(dh->subType & MAIN_TYPE_MASK)
    {  case BD:
@@ -2684,11 +2671,11 @@ Image* OpenImageFromDevice(char *device)
       case CD:
       {  char *tmp;
          if(!image->isoInfo) // || dh->rs02Size > 0)
-	    tmp = g_strdup_printf(_("Medium: %s, %lld sectors%s"),
+	    tmp = g_strdup_printf(_("Medium: %s, %" PRId64 " sectors%s"),
 				  dh->typeDescr, dh->sectors,
 				  image->expectedSectors ? ", Ecc" : ""); //fixme: validate
 	 else
-	    tmp = g_strdup_printf(_("Medium \"%s\": %s, %lld sectors%s created %s"),
+	    tmp = g_strdup_printf(_("Medium \"%s\": %s, %" PRId64 " sectors%s created %s"),
 				  image->isoInfo->volumeLabel,
 				  dh->typeDescr, dh->sectors,
 				  image->expectedSectors ? ", Ecc," : ",",  //fixme: validate

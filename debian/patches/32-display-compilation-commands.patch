@@ -8,29 +8,16 @@ Author: Carlos Maddela <e7appew@gmail.com>
 Forwarded: not-needed
 Last-Update: 2017-08-9
 ---
-This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
----
- GNUmakefile.template | 93 +++++++++++++++++++++++++---------------------------
- 1 file changed, 45 insertions(+), 48 deletions(-)
-
 diff --git a/GNUmakefile.template b/GNUmakefile.template
-index d80932d..ac1f597 100644
+index 6191d9a..4eb0103 100644
 --- a/GNUmakefile.template
 +++ b/GNUmakefile.template
-@@ -71,41 +71,41 @@ OFILES = $(CFG_OFILES)
+@@ -112,45 +112,45 @@ time-stamp:
  
- ${BUILDTMP}/%.o : %.c
- 	@echo "Compiling:" $?
--	@$(CC) $(COPTS) -c $? -o $@
-+	$(CC) $(COPTS) -c $? -o $@
- 
- all: time-stamp dvdisaster
- 
- # Building the dvdisaster binary
- 
- time-stamp:
--	@$(SRCDIR)/scripts/time-stamper.bash $(SRCDIR)/build.h
-+	$(SRCDIR)/scripts/time-stamper.bash $(SRCDIR)/build.h
+ ${BUILDTMP}/closure.o: closure.c build.h
+ 	@echo "Compiling:" closure.c
+-	@$(CC) $(COPTS) -c closure.c -o ${BUILDTMP}/closure.o
++	$(CC) $(COPTS) -c closure.c -o ${BUILDTMP}/closure.o
  
  dvdisaster: inlined-icons.h $(OFILES) 
  	@echo "Linking  : dvdisaster"
@@ -71,19 +58,6 @@ index d80932d..ac1f597 100644
 +	gdk-pixbuf-csource --raw --name=dvdisaster_gtk_quit icons/gtk-quit.png >>inlined-icons.h
 +	gdk-pixbuf-csource --raw --name=dvdisaster_gtk_stop icons/gtk-stop.png >>inlined-icons.h
  
- $(BUILDTMP)/help-dialogs.o: help-dialogs.c simple-md5sum
--	@if test -e fingerprints.md5; \
-+	if test -e fingerprints.md5; \
- 	then if test -e help-dialogs.h; then rm help-dialogs.h; fi; \
- 	     mv inlined-icons.h inlined-icons.saved; \
- 	     mv build.h build.saved; \
-@@ -121,35 +121,35 @@ $(BUILDTMP)/help-dialogs.o: help-dialogs.c simple-md5sum
- 	else echo "#define MODIFIED_SOURCE 1" >> help-dialogs.h; \
- 	fi
- 	@echo "Compiling:" help-dialogs.c
--	@$(CC) $(COPTS) -c help-dialogs.c -o $(BUILDTMP)/help-dialogs.o
-+	$(CC) $(COPTS) -c help-dialogs.c -o $(BUILDTMP)/help-dialogs.o
- 
  $(BUILDTMP)/rs-encoder-sse2.o: rs-encoder-sse2.c
  	@echo "Compiling:" rs-encoder-sse2.c
 -	@$(CC) $(SSE2_OPTIONS) $(COPTS) -c rs-encoder-sse2.c -o $(BUILDTMP)/rs-encoder-sse2.o
@@ -102,12 +76,9 @@ index d80932d..ac1f597 100644
 -	@$(MAKE) --no-print-directory -C locale check-untranslated
 +	$(MAKE) --no-print-directory -C locale check-untranslated
  
- simple-md5sum: md5.c
--	@$(CC) $(COPTS) $(MUDFLAP_CFLAGS) -DSIMPLE_MD5SUM md5.c $(MUDFLAP_LFLAGS) $(MUDFLAP_LIBS) -o simple-md5sum
-+	$(CC) $(COPTS) $(MUDFLAP_CFLAGS) -DSIMPLE_MD5SUM md5.c $(MUDFLAP_LFLAGS) $(MUDFLAP_LIBS) -o simple-md5sum
- 
  version.tex:
  	@echo "\\newcommand{\\projectversion}{$(VERSION)}" >$(SRCDIR)/documentation/config/version.tex
+@@ -158,11 +158,11 @@ version.tex:
  
  manual: version.tex
  	@echo "Producing user manual... "
@@ -121,7 +92,7 @@ index d80932d..ac1f597 100644
  
  
  # Some usage info
-@@ -259,13 +259,13 @@ uninstall:
+@@ -303,8 +278,8 @@ uninstall:
  
  archclean: distclean
  	@echo "Removing rebuildable documentation parts"
@@ -132,61 +103,14 @@ index d80932d..ac1f597 100644
  
  distclean: clean
  	@echo "Removing configuration files"
--	@rm -f configure.log Makefile.config GNUmakefile locale/Makefile
--	@for i in locale/?? locale/??_??; do rm -rf $$i; done
-+	rm -f configure.log Makefile.config GNUmakefile locale/Makefile
-+	for i in locale/?? locale/??_??; do rm -rf $$i; done
- 	@echo "all:" >>GNUmakefile
- 	@echo -e "\t@echo" >>GNUmakefile
- 	@echo -e "\t@echo \"Please create a Makefile by entering \\\"bash configure\\\" first\"" >>GNUmakefile
-@@ -277,14 +277,14 @@ distclean: clean
- 
- clean:
- 	@echo "Removing rebuildable files"
--	@rm -rf *.o $(BUILDTMP)/*.o medium.* abbild.* dvdisaster .dvdisaster core core.* *.core
--	@rm -f inlined-icons.h help-dialogs.h
--	@find . -name \*\~ -print | xargs rm -f;
--	@find . -name \*.mo -print | xargs rm -f;
--	@find . -name \#\*\# -print | xargs rm -f;
--	@rm -f documentation/config/version.tex
--	@if test -e $(PKGNAME); then rm -rf $(PKGNAME); fi
--	@if test -e ~/.dvdisaster-original-author; then \
-+	rm -rf *.o $(BUILDTMP)/*.o medium.* abbild.* dvdisaster .dvdisaster core core.* *.core
-+	rm -f inlined-icons.h help-dialogs.h
-+	find . -name \*\~ -print | xargs rm -f;
-+	find . -name \*.mo -print | xargs rm -f;
-+	find . -name \#\*\# -print | xargs rm -f;
-+	rm -f documentation/config/version.tex
-+	if test -e $(PKGNAME); then rm -rf $(PKGNAME); fi
-+	if test -e ~/.dvdisaster-original-author; then \
- 	  mv build.h build.saved ;\
- 	  if ! test -x simple-md5sum || ! ./simple-md5sum >/dev/null 2>&1; then \
- 	    rm -f simple-md5sum; \
-@@ -294,20 +294,17 @@ clean:
- 	  ./simple-md5sum -b *.h *.c >fingerprints.md5 ;\
- 	  mv build.saved build.h; \
- 	fi
--	@rm -f simple-md5sum
+@@ -324,8 +299,8 @@ clean:
+ 	@find . -name \*.mo -print | xargs rm -f;
+ 	@find . -name \#\*\# -print | xargs rm -f;
+ 	@rm -f documentation/config/version.tex
 -	@$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/codec-specs clean;
 -	@$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/user-manual clean;
-+	rm -f simple-md5sum
 +	$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/codec-specs clean;
 +	$(MAKE) --no-print-directory -C $(SRCDIR)/documentation/user-manual clean;
  
  BUILD=`grep BUILD $(SRCDIR)/build.h | cut -d ' ' -f 3`
  arch:	archclean time-stamp
--	@cd .. ; tar -c -z -f $(TAR_PREFIX)/$(PKGNAME)-$(BUILD).tgz $(PKGNAME)
-+	cd .. ; tar -c -z -f $(TAR_PREFIX)/$(PKGNAME)-$(BUILD).tgz $(PKGNAME)
- 
- INSTALL: documentation/install.template
--	@sed "s/@@PKGNAME/$(PKGNAME)/" <documentation/install.template >INSTALL
-+	sed "s/@@PKGNAME/$(PKGNAME)/" <documentation/install.template >INSTALL
- 
- srcdist: INSTALL distclean manual manualclean
--	@cd .. ; tar -c -j -X $(PKGNAME)/NODIST -f $(TAR_PREFIX)/$(PKGNAME).tar.bz2 $(PKGNAME)
--	@cd .. ; gpg --homedir .gnupg --default-key 758BCC23 --detach-sign --output $(TAR_PREFIX)/$(PKGNAME).tar.bz2.gpg --armor $(TAR_PREFIX)/$(PKGNAME).tar.bz2 
--
--
--
-+	cd .. ; tar -c -j -X $(PKGNAME)/NODIST -f $(TAR_PREFIX)/$(PKGNAME).tar.bz2 $(PKGNAME)
-+	cd .. ; gpg --homedir .gnupg --default-key 758BCC23 --detach-sign --output $(TAR_PREFIX)/$(PKGNAME).tar.bz2.gpg --armor $(TAR_PREFIX)/$(PKGNAME).tar.bz2

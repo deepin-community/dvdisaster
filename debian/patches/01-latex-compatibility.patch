@@ -1,0 +1,32 @@
+Origin: https://hg.jcea.es/dvdisaster/rev/03a51becc4c8
+From: dvdisaster developers <devel@dvdisaster.org>
+Date: Sun, 7 Aug 2022 14:33:57 +0200
+Description: Fixed documentation fpr compatibility with current LaTeX versions.
+---
+diff -r a315fe55901a -r 03a51becc4c8 documentation/codec-specs/codecs.tex
+--- a/documentation/codec-specs/codecs.tex	Sun Jun 05 13:12:59 2022 +0200
++++ b/documentation/codec-specs/codecs.tex	Sun Aug 07 14:33:57 2022 +0200
+@@ -1,7 +1,7 @@
+ \documentclass[12pt,a4paper,twoside]{article}
+ \usepackage{times}	% Skalierbarer und lesbarer Zeichensatz
+-\usepackage{ucs}	% Benötigt für Eingabe von unicode-Zeichensätzen
+-\usepackage[utf8x]{inputenc} % Aktiviert Eingabe von unicode-Zeichensätzen
++%\usepackage{ucs}	% Newer LaTeX versions are UTF8 enabled by default, 
++%\usepackage[utf8x]{inputenc} % and these two pkgs break hyperref
+ \usepackage{epsfig}	% Makros zum Einfügen von Grafiken
+ \usepackage{anysize}	% Makros zum Einstellen der Seitenränder
+ %\usepackage{makeidx}	% Makros zum Erstellen des Indexes
+diff -r a315fe55901a -r 03a51becc4c8 documentation/user-manual/manual.tex
+--- a/documentation/user-manual/manual.tex	Sun Jun 05 13:12:59 2022 +0200
++++ b/documentation/user-manual/manual.tex	Sun Aug 07 14:33:57 2022 +0200
+@@ -1,7 +1,7 @@
+ \documentclass[12pt,a4paper,twoside]{article}
+ \usepackage{times}	% Skalierbarer und lesbarer Zeichensatz
+-\usepackage{ucs}	% Benötigt für Eingabe von unicode-Zeichensätzen
+-\usepackage[utf8x]{inputenc} % Aktiviert Eingabe von unicode-Zeichensätzen
++%\usepackage{ucs}	% Newer LaTeX versions are UTF8 enabled by default, 
++%\usepackage[utf8x]{inputenc} % and these two pkgs break hyperref
+ \usepackage{epsfig}	% Makros zum Einfügen von Grafiken
+ \usepackage{anysize}	% Makros zum Einstellen der Seitenränder
+ %\usepackage{makeidx}	% Makros zum Erstellen des Indexes
+

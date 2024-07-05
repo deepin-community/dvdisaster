@@ -73,8 +73,7 @@ decides the image length by looking at the iso filesystem structures,
 the parity data portion of the image might not be written to the medium.
 Most current writing programs do however measure the .iso image by examining
 its file size, and will transfer the parity data correctly. To be sure you
-should follow the steps described under ``Testing image compatibility''
-at the dvdisaster site (\url{http://dvdisaster.net/en/howtos92.html}) once
+should follow the steps described in the orange user manual in section 2.9.2 ``Testing compatibility \dots for images augmented with ECC data'' once
 before using each version of your optical media authoring software.
 
 Like the other dvdisaster codecs, RS02 is based on a  RS(255,k) Reed-Solomon code
@@ -133,7 +132,7 @@ Its format is described in appendix \ref{eh}. For RS02, only the data fields
 marked with ``all'' or ``RS02'' are relevant; all other fields should be set to zero.
 
 Data layer $n$ does also contain the CRC32 checksums of each data sector
-upto the ecc header. If the .iso image contains $s$ sectors, 
+up to the ecc header. If the .iso image contains $s$ sectors, 
 then the CRC field contains $4s$ bytes, rounded up
 to the nearest multiple of 2048. 
 CRC32 checksums are calculated over a whole CD sector comprising 2048 bytes.
@@ -251,6 +250,9 @@ and the expected size of the parity layers is:
 
 \smallskip
 
+% TODO: implement in codec
+\begin{comment}
+
 From these values we iteratively compute a $2^p$ which has about 20-40 multiples
 in the {\em preliminary ecc size} address space. This value will be used
 for interleaving the ecc header copies with the ecc layers:
@@ -263,6 +265,16 @@ p := 5
 while($\frac{preliminary\;ecc\;size}{2^p} > 40$)
 
 \quad p := p + 1}  
+\end{comment}
+
+From these values we compute a $2^p$ which has about 20-40 multiples
+in the {\em preliminary ecc size} address space. This value will be used
+for interleaving the ecc header copies with the ecc layers:
+
+\[ p = \left\lceil log_2\; \frac{preliminary\;ecc\;size}{40} \right\rceil \]
+
+%\[ p = \left\lceil \frac{log\; \frac{preliminary\;ecc\;size}{40}}{log\; 2} \right\rceil \]
+
 
 \smallskip
 

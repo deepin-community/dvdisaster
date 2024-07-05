@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -20,6 +20,8 @@
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*** src type: some GUI code ***/
+
 #include "dvdisaster.h"
 
 #include "rs03-includes.h"
@@ -31,9 +33,9 @@
 
 //#define VERBOSE 1
 #ifdef VERBOSE
-  #define verbose(format,args...) printf(format, ## args)
+  #define verbose(format,...) printf(format, __VA_ARGS__)
 #else
-  #define verbose(format,args...)
+  #define verbose(format,...)
 #endif
 
 #ifdef HAVE_MMAP
@@ -138,20 +140,22 @@ static void ecc_cleanup(gpointer data)
       }
    }
 
-   if(Closure->guiMode)
-   {  if(ec->earlyTermination)
-        SetLabelText(GTK_LABEL(ec->wl->encFootline),
-		     _("<span %s>Aborted by unrecoverable error.</span>"),
-		     Closure->redMarkup); 
-      AllowActions(TRUE);
+   if(ec->earlyTermination)
+   {  GuiSetLabelText(ec->wl->encFootline,
+		      _("<span %s>Aborted by unrecoverable error.</span>"),
+		      Closure->redMarkup);
    }
+   GuiAllowActions(TRUE);
 
    /*** We must invalidate the CRC cache as it does only cover the
-	data portion of the image, not the full RS03 enhanced image. */
+	data portion of the image, not the full RS03 enhanced image
+        in the augmented image case. */
 
-   if(Closure->crcCache)
-     ClearCrcCache();
-
+   if(Closure->eccTarget == ECC_IMAGE && Closure->crcBuf)
+   {  FreeCrcBuf(Closure->crcBuf);
+      Closure->crcBuf = 0;
+   }
+   
    /*** Clean up */
 
    if(ec->image) CloseImage(ec->image);
@@ -215,8 +219,7 @@ static void ecc_cleanup(gpointer data)
    if(ec->encoderData) g_free(ec->encoderData);
    g_free(ec);
 
-   if(Closure->guiMode)
-     g_thread_exit(0);
+   GuiExitWorkerThread();
 }
 
 /***
@@ -228,8 +231,7 @@ static void ecc_cleanup(gpointer data)
  */
 
 static void abort_encoding(ecc_closure *ec, int truncate)
-{  RS03Widgets *wl = ec->wl;
-
+{  
    if(truncate && ec->lay)
    {  if(Closure->eccTarget == ECC_FILE)
 	 LargeUnlink(Closure->eccName);
@@ -237,15 +239,17 @@ static void abort_encoding(ecc_closure *ec, int truncate)
 	Stop(_("Could not truncate %s: %s\n"),Closure->imageName,strerror(errno));
 
       if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-	 SetLabelText(GTK_LABEL(wl->encFootline), 
-		      _("<span %s>Aborted by user request!</span> (partial ecc data removed from image)"),
-		      Closure->redMarkup); 
+      {  GuiSetLabelText(ec->wl->encFootline, 
+			 _("<span %s>Aborted by user request!</span> (partial ecc data removed from image)"),
+			 Closure->redMarkup);
+      }
    }
    else
    {  if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-	 SetLabelText(GTK_LABEL(wl->encFootline), 
-		      _("<span %s>Aborted by user request!</span>"),
-		      Closure->redMarkup); 
+       {  GuiSetLabelText(ec->wl->encFootline, 
+			  _("<span %s>Aborted by user request!</span>"),
+			  Closure->redMarkup);
+       }
    }
 
    ec->earlyTermination = FALSE;   /* suppress respective error message */
@@ -266,12 +270,12 @@ static void remove_old_ecc(ecc_closure *ec)
    if(Closure->eccTarget == ECC_FILE)
    {  if(LargeStat(Closure->eccName, &ignore))
       {  
-	 if(ConfirmEccDeletion(Closure->eccName))
+	 if(GuiConfirmEccDeletion(Closure->eccName))
 	    LargeUnlink(Closure->eccName);
 	 else
-	 {  SetLabelText(GTK_LABEL(ec->wl->encFootline),
-			 _("<span %s>Aborted to keep existing ecc file.</span>"),
-			 Closure->redMarkup); 
+	 {  GuiSetLabelText(ec->wl->encFootline,
+			    _("<span %s>Aborted to keep existing ecc file.</span>"),
+			    Closure->redMarkup); 
 	    ec->earlyTermination = FALSE;
 	    ecc_cleanup((gpointer)ec);
 	 }
@@ -289,7 +293,7 @@ static void remove_old_ecc(ecc_closure *ec)
       if(Closure->confirmDeletion || !Closure->guiMode)
 	answer = ModalWarning(GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, NULL,
 			      _("Image \"%s\" already contains error correction information.\n"
-				"Truncating image to data part (%lld sectors).\n"),
+				"Truncating image to data part (%" PRId64 " sectors).\n"),
 			      Closure->imageName, data_sectors);
       else answer = TRUE;
 
@@ -317,8 +321,8 @@ static void remove_old_ecc(ecc_closure *ec)
 
       PrintLog(_("Image size is now"));
       if(ec->image->inLast == 2048)
-           PrintLog(_(": %lld medium sectors.\n"), ec->image->sectorSize);
-      else PrintLog(_(": %lld medium sectors and %d bytes.\n"), 
+           PrintLog(_(": %" PRId64 " medium sectors.\n"), ec->image->sectorSize);
+      else PrintLog(_(": %" PRId64 " medium sectors and %d bytes.\n"), 
 		   ec->image->sectorSize-1, ec->image->inLast);
    }
 }
@@ -339,6 +343,8 @@ static void prepare_header(ecc_closure *ec)
    memcpy(eh->cookie, "*dvdisaster*", 12);
    memcpy(eh->method, "RS03", 4);
    eh->methodFlags[0]  = Closure->eccTarget == ECC_FILE ? MFLAG_ECC_FILE : 0;
+   if(!Closure->regtestMode)
+     eh->methodFlags[3]  = Closure->releaseFlags;
    memcpy(eh->mediumFP, image->imageFP, 16);
    memcpy(eh->mediumSum, image->mediumSum, 16);
    gint64_to_uchar(eh->sectors, lay->dataSectors);
@@ -353,6 +359,27 @@ static void prepare_header(ecc_closure *ec)
 
    eh->selfCRC = 0x4c5047;
 
+   if(Closure->eccTarget == ECC_FILE)  /* ecc files span the whole image */
+   {  if(CrcBufValid(Closure->crcBuf, image, FULL_IMAGE))
+      {	 if(Closure->crcBuf->md5State & MD5_IMAGE_COMPLETE)
+	 {  memcpy(eh->mediumSum, Closure->crcBuf->imageMD5sum, 16);
+	    eh->methodFlags[0] |= MFLAG_DATA_MD5;
+ 	    Verbose("CrcBuf present, ecc file: using image MD5 sum\n");
+	 }
+	 else Verbose("CrcBuf present, ecc file: image MD5 sum NOT available\n");
+      }
+   }
+   else  /* augmented images are stripped down to the data portion */
+   {  if(CrcBufValid(Closure->crcBuf, image, DATA_SECTORS_ONLY))
+      {  if(Closure->crcBuf->md5State & MD5_DATA_COMPLETE)
+	 {  memcpy(eh->mediumSum, Closure->crcBuf->dataMD5sum, 16);
+	    eh->methodFlags[0] |= MFLAG_DATA_MD5;
+	    Verbose("CrcBuf present, augmented image: using data MD5 sum\n");
+	 }
+	 else Verbose("CrcBuf present, augmented image: data MD5 sum NOT available\n");
+      }
+   }
+    
    memcpy(ec->eh_le, eh, sizeof(EccHeader));
 
 #ifdef HAVE_BIG_ENDIAN
@@ -478,9 +505,7 @@ static void expand_image(ecc_closure *ec)
 
       if(last_percent != percent)
       {  PrintProgress(_(progress_msg), percent);
-
-	 if(Closure->guiMode)
-	   SetProgress(ec->wl->encPBar1, percent, 100);
+	 GuiSetProgress(ec->wl->encPBar1, percent, 100);
 
 	 last_percent = percent; 
       }
@@ -489,8 +514,7 @@ static void expand_image(ecc_closure *ec)
    PrintProgress(_(progress_msg), 100);
    PrintProgress("\n");
 
-   if(Closure->guiMode)
-     SetProgress(ec->wl->encPBar1, 100, 100);
+   GuiSetProgress(ec->wl->encPBar1, 100, 100);
 }
 
 /*
@@ -504,6 +528,8 @@ static void prepare_crc_block(ecc_closure *ec, CrcBlock *cb)
    memcpy(cb->cookie, "*dvdisaster*", 12);
    memcpy(cb->method, "RS03", 4);
    cb->methodFlags[0]  = Closure->eccTarget == ECC_FILE ? MFLAG_ECC_FILE : 0; 
+   if(!Closure->regtestMode)
+     cb->methodFlags[3]  = Closure->releaseFlags;
    cb->creatorVersion  = Closure->version;
    cb->neededVersion   = NEEDED_VERSION;
    cb->fpSector        = FINGERPRINT_SECTOR;
@@ -656,7 +682,7 @@ static void read_next_chunk(ecc_closure *ec, guint64 chunk)
 
 	  Stop(_("Incomplete image\n\n"
 		 "The image contains missing sectors,\n"
-		 "e.g. sector %lld.\n%s"
+		 "e.g. sector %" PRId64 ".\n%s"
 		 "Error correction data works like a backup; it must\n"
 		 "be created when the image is still fully readable.\n"
 		 "Exiting and removing partial error correction data."),
@@ -688,17 +714,17 @@ static void flush_crc(ecc_closure *ec, LargeFile *file_out)
 
    /* Write out the CRC layer */
       
-   verbose("IO: writing CRC layer\n");
+   verbose("%s", "IO: writing CRC layer\n");
    crc_sect = 2048*(ec->encoderChunk+lay->firstCrcPos);
    if(!LargeSeek(file_out, crc_sect))
    {  ec->abortImmediately = TRUE;
 
-      Stop(_("Failed seeking to sector %lld in image: %s"), crc_sect, strerror(errno));
+      Stop(_("Failed seeking to sector %" PRId64 " in image: %s"), crc_sect, strerror(errno));
    }
    for(i=0; i<ec->encoderLayerSectors; i++)
       if(LargeWrite(file_out, ec->encoderCrc+512*i, 2048) != 2048)
       {  ec->abortImmediately = TRUE;
-	 Stop(_("Failed writing to sector %lld in image: %s"), crc_sect, strerror(errno));
+	 Stop(_("Failed writing to sector %" PRId64 " in image: %s"), crc_sect, strerror(errno));
       }
 }
 
@@ -709,7 +735,7 @@ static void flush_parity(ecc_closure *ec, LargeFile *file_out)
 
    /* Write out the created parity. */
 
-   verbose("IO: writing parity...\n");
+   verbose("%s", "IO: writing parity...\n");
    for(k=0; k<lay->nroots; k++)
    {  gint64 idx=0;
 
@@ -718,15 +744,15 @@ static void flush_parity(ecc_closure *ec, LargeFile *file_out)
 	
 	 if(!LargeSeek(file_out, 2048*s))
 	 {  ec->abortImmediately = TRUE;
-	    Stop(_("Failed seeking to sector %lld in image: %s"), s, strerror(errno));
+	    Stop(_("Failed seeking to sector %" PRId64 " in image: %s"), s, strerror(errno));
 	 }
 	 if(LargeWrite(file_out, ec->slice[k]+idx, 2048) != 2048)
 	 {  ec->abortImmediately = TRUE;
-	    Stop(_("Failed writing to sector %lld in image: %s"), s, strerror(errno));
+	    Stop(_("Failed writing to sector %" PRId64 " in image: %s"), s, strerror(errno));
 	 }
       }
    }
-   verbose("IO: parity written.\n");
+   verbose("%s", "IO: parity written.\n");
 }
 
 static gpointer io_thread(ecc_closure *ec)
@@ -741,12 +767,12 @@ static gpointer io_thread(ecc_closure *ec)
    int parity_available = 0;
    int i;
 
-   verbose("Reader thread initializing\n");
+   verbose("%s", "Reader thread initializing\n");
 
    /*** Allocate local parity buffer aligned at 128bit boundary */
 
    ec->paritybase = g_malloc(n_parity_bytes+16);      /* output buffer */
-   ec->parity     = ec->paritybase + (16- ((unsigned long)ec->paritybase & 15));
+   ec->parity     = ec->paritybase + (16- ((intptr_t)ec->paritybase & 15));
 
    /*** Create buffer for the ndata input layers 
         Space is provided for one more sector so that
@@ -782,11 +808,11 @@ static gpointer io_thread(ecc_closure *ec)
    for(i=0; i<nroots; i++)
      ec->slice[i] = g_malloc(ec->chunkBytes);
 
-   Verbose("Cache allocation: %lldK+%lldK+%lldK=%lldM (data+parity+descrambling)\n",
-	   (long long)((2*ec->chunkBytes*ndata)/1024),
-	   (long long)((n_parity_bytes)/1024),
-	   (long long)((ec->chunkBytes*nroots)/1024),
-	   (long long)((2*ec->chunkBytes*ndata+n_parity_bytes+ec->chunkBytes*nroots)/(1024*1024)));
+   Verbose("Cache allocation: %" PRId64 "K+%" PRId64 "K+%" PRId64 "K=%" PRId64 "M (data+parity+descrambling)\n",
+	   ((2*ec->chunkBytes*ndata)/1024),
+	   ((n_parity_bytes)/1024),
+	   ((ec->chunkBytes*nroots)/1024),
+	   ((2*ec->chunkBytes*ndata+n_parity_bytes+ec->chunkBytes*nroots)/(1024*1024)));
 
    /*** Create ecc information for the protected sectors portion of the image. */ 
 
@@ -796,7 +822,7 @@ static gpointer io_thread(ecc_closure *ec)
       the whole image has been processed. */
 
    verbose("NOTE: ndata = %d, chunk size = %d\n", ndata, ec->chunkSize);
-   verbose("NOTE: sectors per layer = %lld\n", (long long)lay->sectorsPerLayer);
+   verbose("NOTE: sectors per layer = %" PRId64 "\n", lay->sectorsPerLayer);
 
    for(chunk=0; chunk<lay->sectorsPerLayer; chunk+=ec->chunkSize) 
    {  int cpu_bound = 0;
@@ -809,7 +835,7 @@ static gpointer io_thread(ecc_closure *ec)
       {  read_next_chunk(ec, chunk);
 	 //	 flush_crc(ec, file_out);  // FIXME
 	 needs_preload = 0;
-	 verbose("IO: first chunk loaded\n");
+	 verbose("%s", "IO: first chunk loaded\n");
 	 continue;
       }
 
@@ -856,7 +882,7 @@ static gpointer io_thread(ecc_closure *ec)
       g_mutex_lock(ec->lock);
       cpu_bound = ec->buffersToEncode;
       while(ec->buffersToEncode)
-      {  verbose("IO: Waiting for encoders to finish\n");
+      {  verbose("%s", "IO: Waiting for encoders to finish\n");
 	 g_cond_wait(ec->ioCond, ec->lock);
       }
       g_mutex_unlock(ec->lock);
@@ -865,15 +891,13 @@ static gpointer io_thread(ecc_closure *ec)
 
       verbose("IO: chunk %d finished\n", ec->ioChunk);
 
-      if(Closure->guiMode)
-      {  if(cpu_bound) 
-	 {  SetLabelText(GTK_LABEL(ec->wl->encBottleneck), _("CPU bound"));
-	    ec->cpuBound++;
-	 }
-         else
-	 {  SetLabelText(GTK_LABEL(ec->wl->encBottleneck), _("I/O bound"));
-	    ec->ioBound++;
-	 }
+      if(cpu_bound) 
+      {  GuiSetLabelText(ec->wl->encBottleneck, _("CPU bound"));
+	 ec->cpuBound++;
+      }
+      else
+      {  GuiSetLabelText(ec->wl->encBottleneck, _("I/O bound"));
+	 ec->ioBound++;
       }
    } /* chunk finished */
 
@@ -898,7 +922,7 @@ static gpointer io_thread(ecc_closure *ec)
    ec->slicesFree = TRUE;  /* we have saved the slices; go ahead */
    g_cond_broadcast(ec->ioCond);
    while(ec->buffersToEncode)
-   {  verbose("IO: Waiting for encoders to finish last chunk\n");
+   {  verbose("%s", "IO: Waiting for encoders to finish last chunk\n");
       g_cond_wait(ec->ioCond, ec->lock);
    }
    g_mutex_unlock(ec->lock);
@@ -911,7 +935,7 @@ static gpointer io_thread(ecc_closure *ec)
    flush_crc(ec, file_out);
    flush_parity(ec, file_out);
 
-   verbose("IO: finished\n"); fflush(stdout);
+   verbose("%s", "IO: finished\n"); fflush(stdout);
    return NULL;
 }
 
@@ -990,7 +1014,7 @@ static gpointer encoder_thread(ecc_closure *ec)
 	 unsigned char *parity = ec->parity + 2048*nroots_aligned*layer_offset;
 
 	 /* Calculate the CRC32 layer (ndata-1) */
-#if 1
+
 	 if(layer < ndata-1) 
 	 {  /* The first ecc block CRC needs to be cached for wrap-around */
 
@@ -1010,7 +1034,6 @@ static gpointer encoder_thread(ecc_closure *ec)
 
 	 if(layer == ndata-1)
 	    prepare_crc_block(ec, (CrcBlock*)&ec->encoderCrc[512*layer_offset]);
-#endif
 
 	 /* Reed-Solomon part */       
 
@@ -1071,6 +1094,7 @@ static gpointer encoder_thread(ecc_closure *ec)
       {
 	ec->lastPercent = percent;
 	g_mutex_unlock(ec->lock);
+#ifdef WITH_GUI_YES	
 	if(Closure->guiMode)
 	{    gdouble elapsed;
 	     gulong ignore;
@@ -1078,14 +1102,16 @@ static gpointer encoder_thread(ecc_closure *ec)
 	     elapsed=g_timer_elapsed(ec->contTimer, &ignore);
 	     if(elapsed > 1.0)
 	     {  gdouble mbs = ((double)ndata*(ec->progress-ec->lastProgress))/(512.0*elapsed);
-		SetLabelText(GTK_LABEL(ec->wl->encPerformance), 
-			     _("%5.2fMiB/s current"), mbs);
+		GuiSetLabelText(ec->wl->encPerformance, 
+				_("%5.2fMiB/s current"), mbs);
 		ec->lastProgress = ec->progress;
 		g_timer_reset(ec->contTimer);
 	     }
-             SetProgress(ec->wl->encPBar2, percent, 1000);
+             GuiSetProgress(ec->wl->encPBar2, percent, 1000);
 	}
-	else PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
+	else
+#endif /* WITH_GUI_YES */
+	  PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
       }
       else g_mutex_unlock(ec->lock);
 
@@ -1098,7 +1124,7 @@ static gpointer encoder_thread(ecc_closure *ec)
       ec->buffersToEncode-=enc_size;
       if(!ec->buffersToEncode)
       {  g_cond_broadcast(ec->ioCond);
-	 verbose("ENC: processed last buffer; telling IO process.\n");
+	 verbose("%s", "ENC: processed last buffer; telling IO process.\n");
 	 fflush(stdout);
       }
       g_mutex_unlock(ec->lock);
@@ -1109,30 +1135,32 @@ static void create_reed_solomon(ecc_closure *ec)
 {  int nroots = ec->lay->nroots;
    int ndata = ec->lay->ndata;
    int i;
+#ifdef WITH_GUI_YES
    char *alg="none";
    char *iostrat="none";
-
+#endif
    /*** Show the second progress bar */
-
+#ifdef WITH_GUI_YES
    if(Closure->guiMode)
-   {  ShowWidget(ec->wl->encPBar2);
-      ShowWidget(ec->wl->encLabel2);
-      ShowWidget(ec->wl->encLabel3);
-      ShowWidget(ec->wl->encLabel4);
-      ShowWidget(ec->wl->encLabel5);
-      ShowWidget(ec->wl->encThreads);
-      ShowWidget(ec->wl->encPerformance);
-      ShowWidget(ec->wl->encBottleneck);
+   {  GuiShowWidget(ec->wl->encPBar2);
+      GuiShowWidget(ec->wl->encLabel2);
+      GuiShowWidget(ec->wl->encLabel3);
+      GuiShowWidget(ec->wl->encLabel4);
+      GuiShowWidget(ec->wl->encLabel5);
+      GuiShowWidget(ec->wl->encThreads);
+      GuiShowWidget(ec->wl->encPerformance);
+      GuiShowWidget(ec->wl->encBottleneck);
 
       DescribeRSEncoder(&alg, &iostrat);
 
-      SetLabelText(GTK_LABEL(ec->wl->encThreads), 
-			_("%d threads with %s encoding and %s I/O"),
-		   Closure->codecThreads, alg, iostrat);
-      SetLabelText(GTK_LABEL(ec->wl->encPerformance), "");
-      SetLabelText(GTK_LABEL(ec->wl->encBottleneck), "");
+      GuiSetLabelText(ec->wl->encThreads, 
+		      _("%d threads with %s encoding and %s I/O"),
+		      Closure->codecThreads, alg, iostrat);
+      GuiSetLabelText(ec->wl->encPerformance, "");
+      GuiSetLabelText(ec->wl->encBottleneck, "");
    }
-
+#endif /* WITH_GUI_YES */
+   
    /*** Calculate buffer size for the parity calculation and image data caching. 
 
         The algorithm builds the parity file consecutively in chunks of 
@@ -1198,7 +1226,7 @@ static void create_reed_solomon(ecc_closure *ec)
       verbose("SCHED: joined with worker %d\n", i);
       fflush(stdout);
    }
-   verbose("SCHED: scheduler finished.\n");
+   verbose("%s", "SCHED: scheduler finished.\n");
 }
 
 /***
@@ -1223,10 +1251,10 @@ void RS03Create(void)
 
    RegisterCleanup(_("Error correction data creation aborted"), ecc_cleanup, ec);
 
-   if(Closure->guiMode)  /* Preliminary fill text for the head line */
-     SetLabelText(GTK_LABEL(wl->encHeadline),
-		  _("<big>Augmenting the image with error correction data.</big>\n<i>%s</i>"), 
-		  _("- checking image -"));
+   /* Preliminary fill text for the head line */
+   GuiSetLabelText(wl->encHeadline,
+      _("<big>Augmenting the image with error correction data.</big>\n<i>%s</i>"), 
+      _("- checking image -"));
 
    /*** Open image file. */
 
@@ -1245,8 +1273,8 @@ void RS03Create(void)
    ec->image = image;
 
    if(image->inLast == 2048)
-        PrintLog(_(": %lld medium sectors.\n"), image->sectorSize);
-   else PrintLog(_(": %lld medium sectors and %d bytes.\n"), 
+        PrintLog(_(": %" PRId64 " medium sectors.\n"), image->sectorSize);
+   else PrintLog(_(": %" PRId64 " medium sectors and %d bytes.\n"), 
 		   image->sectorSize-1, image->inLast);
 
    /*** If the image already contains error correction information, remove it. */
@@ -1272,32 +1300,36 @@ void RS03Create(void)
    /*** Announce what we are going to do */
 
    ecc_sectors = lay->nroots*lay->sectorsPerLayer;
+
+#ifdef WITH_GUI_YES   
    if(Closure->guiMode)  /* Preliminary fill text for the head line */
-   {  ec->msg = g_strdup_printf(_("Encoding with Method RS03: %lld MiB data, %lld MiB ecc (%d roots; %4.1f%% redundancy)."),
+   {  ec->msg = g_strdup_printf(_("Encoding with Method RS03: %" PRId64 " MiB data, %" PRId64 " MiB ecc (%d roots; %4.1f%% redundancy)."),
 				lay->dataSectors/512, ecc_sectors/512, lay->nroots, lay->redundancy);
 
-   if(lay->target == ECC_IMAGE)
-      SetLabelText(GTK_LABEL(wl->encHeadline),
-		   _("<big>Augmenting the image with error correction data.</big>\n<i>%s</i>"), 
-		   ec->msg);
-   else
-      SetLabelText(GTK_LABEL(wl->encHeadline),
-		   _("<big>Creating the error correction file.</big>\n<i>%s</i>"), 
-		   ec->msg);
-
+      if(lay->target == ECC_IMAGE)
+      {  GuiSetLabelText(wl->encHeadline,
+	     _("<big>Augmenting the image with error correction data.</big>\n<i>%s</i>"), 
+	     ec->msg);
+      }
+      else
+      {  GuiSetLabelText(wl->encHeadline,
+	     _("<big>Creating the error correction file.</big>\n<i>%s</i>"), 
+	     ec->msg);
+      }
    }
    else
+#endif /* WITH_GUI_YES */
    { char *alg, *iostrat;
      DescribeRSEncoder(&alg, &iostrat);
  
      if(Closure->eccTarget == ECC_IMAGE)
 	 ec->msg = g_strdup_printf(_("Augmenting image with Method RS03 [%d threads, %s, %s I/O]:\n"
-				     "%lld MiB data, %lld MiB ecc (%d roots; %4.1f%% redundancy)."),
+				     "%" PRId64 " MiB data, %" PRId64 " MiB ecc (%d roots; %4.1f%% redundancy)."),
 				   Closure->codecThreads, alg, iostrat, 
 				   lay->dataSectors/512, ecc_sectors/512, lay->nroots, lay->redundancy);
       else
 	 ec->msg = g_strdup_printf(_("Creating the error correction file with Method RS03 [%d threads, %s, %s I/O]:\n"
-				     "%lld MiB data, %lld MiB ecc (%d roots; %4.1f%% redundancy)."),
+				     "%" PRId64 " MiB data, %" PRId64 " MiB ecc (%d roots; %4.1f%% redundancy)."),
 				   Closure->codecThreads, alg, iostrat, 
 				   lay->dataSectors/512, ecc_sectors/512, lay->nroots, lay->redundancy);
 
@@ -1308,7 +1340,7 @@ void RS03Create(void)
 
    if(Closure->eccTarget == ECC_IMAGE && lay->nroots < 8)
      Stop(_("Not enough space on medium left for error correction data.\n"
-	    "Data portion of image: %lld sect.; maximum possible size: %lld sect.\n"
+	    "Data portion of image: %" PRId64 " sect.; maximum possible size: %" PRId64 " sect.\n"
 	    "If reducing the image size or using a larger medium is not\n"
 	    "an option, please create a separate error correction file."),
 	  lay->dataSectors, lay->mediumCapacity);
@@ -1317,7 +1349,7 @@ void RS03Create(void)
    {  int answer;
 
       answer = ModalWarning(GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, NULL,
-			    _("Using redundancies below 20%%%% may not give\n"
+			    _("Using redundancies below 20%% may not give\n"
 			      "the expected data loss protection.\n"));
 
       if(!answer)
@@ -1341,7 +1373,7 @@ void RS03Create(void)
    PrintProgress(_("Ecc generation: 100.0%%\n"));
    if(Closure->eccTarget == ECC_IMAGE)
      PrintLog(_("Image has been augmented with error correction data.\n"
-		"New image size is %lld MiB (%lld sectors).\n"),
+		"New image size is %" PRId64 " MiB (%" PRId64 " sectors).\n"),
 	      (lay->totalSectors)/512,
 	      lay->totalSectors);
    else
@@ -1353,29 +1385,27 @@ void RS03Create(void)
    mbs = ((double)lay->ndata*lay->sectorsPerLayer)/(512.0*elapsed);
    PrintLog(_("Avg performance: %5.2fs (%5.2fMiB/s) total\n"), 
 	    elapsed, mbs);
-   if(Closure->guiMode)
-   {  SetLabelText(GTK_LABEL(wl->encPerformance), _("%5.2fMiB/s average"), mbs);
-      SetLabelText(GTK_LABEL(ec->wl->encBottleneck), 
+
+   GuiSetLabelText(wl->encPerformance, _("%5.2fMiB/s average"), mbs);
+   GuiSetLabelText(ec->wl->encBottleneck, 
 		   _("%d times CPU bound; %d times I/O bound"),
 		   ec->cpuBound, ec->ioBound);
+
+   GuiSetProgress(wl->encPBar2, 100, 100);
+
+   if(Closure->eccTarget == ECC_IMAGE)
+   {  GuiSetLabelText(wl->encFootline,
+		      _("Image has been augmented with error correction data.\n"
+			"New image size is %" PRId64 " MiB (%" PRId64 " sectors).\n"),
+		      (lay->totalSectors)/512,
+		      lay->totalSectors);
    }
-
-   if(Closure->guiMode)
-   {  SetProgress(wl->encPBar2, 100, 100);
-
-      if(Closure->eccTarget == ECC_IMAGE)
-	SetLabelText(GTK_LABEL(wl->encFootline),
-		     _("Image has been augmented with error correction data.\n"
-		       "New image size is %lld MiB (%lld sectors).\n"),
-		     (lay->totalSectors)/512,
-		     lay->totalSectors);
-      else
-	SetLabelText(GTK_LABEL(wl->encFootline), 
-		     _("The error correction file has been successfully created.\n"
-		       "Make sure to keep this file on a reliable medium.")); 
-
+   else
+   {  GuiSetLabelText(wl->encFootline, 
+		      _("The error correction file has been successfully created.\n"
+			"Make sure to keep this file on a reliable medium.")); 
    }
-
+   
    /*** Clean up */
 
    ec->earlyTermination = FALSE;

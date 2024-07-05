@@ -1,11 +1,11 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
  *
  *  The Reed-Solomon error correction draws a lot of inspiration - and even code -
  *  from Phil Karn's excellent Reed-Solomon library: http://www.ka9q.net/code/fec/
  *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -22,6 +22,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: some GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -73,7 +75,7 @@ static int calculate_redundancy(char *image_name)
 
 	         fs = strtoll(Closure->redundancy, NULL, 10);
 	         if(fs < ecc_file_size(sectors, 8) || fs > ecc_file_size(sectors, 100))
-		   Stop(_("Ecc file size %lldm out of useful range [%lld .. %lld]"),
+		   Stop(_("Ecc file size %" PRId64 "m out of useful range [%" PRId64 " .. %" PRId64 "]"),
 			fs, ecc_file_size(sectors, 8), ecc_file_size(sectors, 100));
 		 for(nr=100; nr>8; nr--)
 		   if(fs >= ecc_file_size(sectors, nr))
@@ -100,19 +102,16 @@ static int calculate_redundancy(char *image_name)
 static void unlink_image(GtkWidget *label)
 {
    if(LargeUnlink(Closure->imageName))
-   {    PrintLog(_("\nImage file %s deleted.\n"),Closure->imageName);
-
-        if(Closure->guiMode)
-	  SetLabelText(GTK_LABEL(label),
-		       _("\nImage file %s deleted.\n"), Closure->imageName);
+   {  PrintLog(_("\nImage file %s deleted.\n"),Closure->imageName);
+      GuiSetLabelText(label, _("\nImage file %s deleted.\n"), Closure->imageName);
    }
    else 
    {  if(!Closure->guiMode)
-       PrintLog("\n");
-
-       ModalWarning(GTK_MESSAGE_ERROR, GTK_BUTTONS_OK, NULL,
-		    _("Image file %s not deleted: %s\n"),
-		    Closure->imageName, strerror(errno));
+         PrintLog("\n");
+      else
+	 ModalWarning(GTK_MESSAGE_ERROR, GTK_BUTTONS_OK, NULL,
+		      _("Image file %s not deleted: %s\n"),
+		      Closure->imageName, strerror(errno));
    }
 }
 
@@ -144,12 +143,13 @@ static void ecc_cleanup(gpointer data)
 
    if(Closure->guiMode)
    {  if(ec->earlyTermination)
-        SetLabelText(GTK_LABEL(ec->wl->encFootline),
-		     _("<span %s>Aborted by unrecoverable error.</span>"),
-		     Closure->redMarkup); 
-      AllowActions(TRUE);
+      {  GuiSetLabelText(ec->wl->encFootline,
+			 _("<span %s>Aborted by unrecoverable error.</span>"),
+			 Closure->redMarkup);
+      }
+      GuiAllowActions(TRUE);
    }
-
+   
    /** Clean up */
 
    if(ec->gt) FreeGaloisTables(ec->gt);
@@ -161,11 +161,13 @@ static void ecc_cleanup(gpointer data)
    if(ec->msg)   g_free(ec->msg);
    if(ec->timer) g_timer_destroy(ec->timer);
 
+#ifdef WITH_GUI_YES
    if(Closure->enableCurveSwitch)
    {  Closure->enableCurveSwitch = FALSE;
       RS01ShowCurveButton(ec->self);
    }
-
+#endif
+   
    g_free(ec);
 
    if(Closure->guiMode)
@@ -234,9 +236,8 @@ void RS01Create(void)
 			     nroots,
 			     ((double)nroots*100.0)/(double)ndata);
 
-   if(Closure->guiMode)
-     SetLabelText(GTK_LABEL(wl->encHeadline),
-		  _("<big>Creating the error correction file.</big>\n<i>%s</i>"), ec->msg);
+   GuiSetLabelText(wl->encHeadline,
+		   _("<big>Creating the error correction file.</big>\n<i>%s</i>"), ec->msg);
 
    /*** Test the image file and create the CRC sums */
 
@@ -244,12 +245,12 @@ void RS01Create(void)
 
    if(LargeStat(Closure->eccName, &n))
    {  
-      if(ConfirmEccDeletion(Closure->eccName))
+      if(GuiConfirmEccDeletion(Closure->eccName))
 	 LargeUnlink(Closure->eccName);
       else
-      {  SetLabelText(GTK_LABEL(ec->wl->encFootline),
-		      _("<span %s>Aborted to keep existing ecc file.</span>"),
-		      Closure->redMarkup); 
+      {  GuiSetLabelText(ec->wl->encFootline,
+			 _("<span %s>Aborted to keep existing ecc file.</span>"),
+			 Closure->redMarkup); 
 	 ec->earlyTermination = FALSE;
 	 goto terminate;
       }
@@ -266,8 +267,8 @@ void RS01Create(void)
       Stop(_("Image file %s: %s."),Closure->imageName, strerror(errno));
    }
    if(image->inLast == 2048)
-        PrintLog(_(": %lld medium sectors.\n"), image->sectorSize);
-   else PrintLog(_(": %lld medium sectors and %d bytes.\n"), 
+        PrintLog(_(": %" PRId64 " medium sectors.\n"), image->sectorSize);
+   else PrintLog(_(": %" PRId64 " medium sectors and %d bytes.\n"), 
 		   image->sectorSize-1, image->inLast);
 
    if(!Closure->eccName || !strlen(Closure->eccName))
@@ -279,16 +280,17 @@ void RS01Create(void)
 
    ec->timer   = g_timer_new();
 
-   if(Closure->crcCache)   /* use CRC values created during last read */
+   /* Try to use CRC values created during last read */
+
+   if(CrcBufValid(Closure->crcBuf, image, FULL_IMAGE))   
    {  guint32 crc_idx;
       int percent, last_percent = 0;
       char *msg = _("Writing sector checksums: %3d%%");
 
-      if(Closure->guiMode)
-	SetLabelText(GTK_LABEL(wl->encLabel1),
-		     _("<b>1. Writing image sector checksums:</b>"));
+      GuiSetLabelText(wl->encLabel1,
+		      _("<b>1. Writing image sector checksums:</b>"));
 
-      memcpy(image->mediumSum, Closure->md5Cache, 16);
+      memcpy(image->mediumSum, Closure->crcBuf->imageMD5sum, 16);
       MD5Init(&md5Ctxt);    /*  md5sum of CRC portion of ecc file */
 
       /* Write out the cached CRC sectors */
@@ -305,7 +307,7 @@ void RS01Create(void)
 	 else  ci = 1024;
 
 	 size   = ci*sizeof(guint32);
-	 crcbuf = &Closure->crcCache[crc_idx];
+	 crcbuf = &Closure->crcBuf->crcbuf[crc_idx];
 
 	 n = LargeWrite(image->eccFile, crcbuf, size);
 	 MD5Update(&md5Ctxt, (unsigned char*)crcbuf, size);
@@ -316,9 +318,7 @@ void RS01Create(void)
          percent = (100*crc_idx)/image->sectorSize;
          if(last_percent != percent) 
          {  PrintProgress(msg,percent);
-
-            if(Closure->guiMode)
-	      SetProgress(wl->encPBar1, percent, 100);
+	    GuiSetProgress(wl->encPBar1, percent, 100);
 
 	    last_percent = percent;
 	 }
@@ -326,11 +326,17 @@ void RS01Create(void)
 
       PrintProgress(msg, 100);
    }
-   else   /* Scan image for missing sectors and calculate the checksums */
-   {  if(Closure->guiMode)
-       SetLabelText(GTK_LABEL(wl->encLabel1),
-		    _("<b>1. Calculating image sector checksums:</b>"));
 
+   /* Cached crc buffer can not be used. 
+      Scan image for missing sectors and calculate the checksums.
+      Checksums are only computed locally and not provided in the cache. */
+   else   
+   {  GuiSetLabelText(wl->encLabel1,
+		      _("<b>1. Calculating image sector checksums:</b>"));
+
+      FreeCrcBuf(Closure->crcBuf);  /* just a defensive measure */
+      Closure->crcBuf = NULL;
+     
       RS01ScanImage(self, image, &md5Ctxt, CREATE_CRC);
 
       if(image->sectorsMissing)
@@ -342,29 +348,27 @@ void RS01Create(void)
 	 if(Closure->stopActions)   
 	 {
 	    if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-	       SetLabelText(GTK_LABEL(wl->encFootline), 
-			    _("<span %s>Aborted by user request!</span> (partial error correction file removed)"),
-			    Closure->redMarkup); 
-	   ec->earlyTermination = FALSE;  /* suppress respective error message */
+	    {  GuiSetLabelText(wl->encFootline, 
+			       _("<span %s>Aborted by user request!</span> (partial error correction file removed)"),
+			       Closure->redMarkup);
+	    }
+	    ec->earlyTermination = FALSE;  /* suppress respective error message */
 	   goto terminate;
 	 }
 	 else 
-	 {  if(Closure->guiMode)
-	     SetProgress(wl->encPBar1, 100, 100);
+	 {  GuiSetProgress(wl->encPBar1, 100, 100);
 
-	    Stop(_("%lld sectors unread or missing due to errors.\n"), image->sectorsMissing);
+	    Stop(_("%" PRId64 " sectors unread or missing due to errors.\n"), image->sectorsMissing);
 	 }
       }
    }
 
    PrintTimeToLog(ec->timer, "for CRC writing/generation.\n");
 
-   if(Closure->guiMode)
-   {  SetProgress(wl->encPBar1, 100, 100);
-      ShowWidget(wl->encPBar2);
-      ShowWidget(wl->encLabel2);
-   }
-
+   GuiSetProgress(wl->encPBar1, 100, 100);
+   GuiShowWidget(wl->encPBar2);
+   GuiShowWidget(wl->encLabel2);
+   
    if(!Closure->guiMode)
      PrintLog("%s\n",ec->msg);
 
@@ -375,6 +379,8 @@ void RS01Create(void)
    memcpy(eh->cookie, "*dvdisaster*", 12);
    memcpy(eh->method, "RS01", 4);
    eh->methodFlags[0] = 1;
+   if(!Closure->regtestMode)
+     eh->methodFlags[3] = Closure->releaseFlags;
    gint64_to_uchar(eh->sectors, image->sectorSize);
    eh->dataBytes       = ndata;
    eh->eccBytes        = nroots;
@@ -483,9 +489,10 @@ void RS01Create(void)
 
 	    if(Closure->stopActions) /* User hit the Stop button */
 	    {  if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-		  SetLabelText(GTK_LABEL(wl->encFootline), 
-			       _("<span %s>Aborted by user request!</span> (partial error correction file removed)"),
-			       Closure->redMarkup); 
+	       {  GuiSetLabelText(wl->encFootline, 
+				  _("<span %s>Aborted by user request!</span> (partial error correction file removed)"),
+				  Closure->redMarkup);
+	       }
 	       ec->earlyTermination = FALSE;  /* suppress respective error message */
 	       LargeClose(image->eccFile);
 	       image->eccFile = NULL;
@@ -558,10 +565,8 @@ void RS01Create(void)
 	    progress++;
 	    percent = (1000*progress)/max_percent;
 	    if(last_percent != percent) 
-	    {  if(Closure->guiMode)
-	          SetProgress(wl->encPBar2, percent, 1000);
-	       else
-	          PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
+	    {  GuiSetProgress(wl->encPBar2, percent, 1000);
+	       PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
 	       last_percent = percent;
 	    }
 	 }
@@ -576,9 +581,10 @@ void RS01Create(void)
 
 	    if(Closure->stopActions) /* User hit the Stop button */
 	    {  if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-		  SetLabelText(GTK_LABEL(wl->encFootline), 
-			       _("<span %s>Aborted by user request!</span> (partial error correction file removed)"),
-			       Closure->redMarkup); 
+	       {  GuiSetLabelText(wl->encFootline, 
+				  _("<span %s>Aborted by user request!</span> (partial error correction file removed)"),
+				  Closure->redMarkup);
+	       }
 	       ec->earlyTermination = FALSE;   /* suppress respective error message */
 	       LargeClose(image->eccFile);
 	       image->eccFile = NULL;
@@ -683,10 +689,8 @@ void RS01Create(void)
 	    progress++;
 	    percent = (1000*progress)/max_percent;
 	    if(last_percent != percent) 
-	    {  if(Closure->guiMode)
-	          SetProgress(wl->encPBar2, percent, 1000);
-	       else
-	          PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
+	    {  GuiSetProgress(wl->encPBar2, percent, 1000);
+	       PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
 	       last_percent = percent;
 	    }
 	 }
@@ -704,9 +708,10 @@ void RS01Create(void)
 
 	    if(Closure->stopActions) /* User hit the Stop button */
 	    {  if(Closure->stopActions == STOP_CURRENT_ACTION) /* suppress memleak warning when closing window */
-		  SetLabelText(GTK_LABEL(wl->encFootline), 
-			       _("<span %s>Aborted by user request!</span>"),
-			       Closure->redMarkup); 
+	       {  GuiSetLabelText(wl->encFootline, 
+				  _("<span %s>Aborted by user request!</span>"),
+				  Closure->redMarkup);
+	       }
 	       ec->earlyTermination = FALSE;   /* suppress respective error message */
 	       LargeClose(image->eccFile);
 	       image->eccFile = NULL;
@@ -978,10 +983,8 @@ void RS01Create(void)
 	    progress++;
 	    percent = (1000*progress)/max_percent;
 	    if(last_percent != percent) 
-	    {  if(Closure->guiMode)
-	          SetProgress(wl->encPBar2, percent, 1000);
-	       else
-	          PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
+	    {  GuiSetProgress(wl->encPBar2, percent, 1000);
+	       PrintProgress(_("Ecc generation: %3d.%1d%%"), percent/10, percent%10);
 	       last_percent = percent;
 	    }
 	 }
@@ -1022,13 +1025,11 @@ void RS01Create(void)
 	       "Make sure to keep this file on a reliable medium.\n"),
 	     Closure->eccName);
    
-   if(Closure->guiMode)
-   {  SetProgress(wl->encPBar2, 100, 100);
+   GuiSetProgress(wl->encPBar2, 100, 100);
 
-      SetLabelText(GTK_LABEL(wl->encFootline), 
+   GuiSetLabelText(wl->encFootline, 
 		   _("The error correction file has been successfully created.\n"
 		     "Make sure to keep this file on a reliable medium.")); 
-   }
 
    /*** If the --unlink option or respective GUI switch is set, 
 	unlink the image. */

@@ -1,8 +1,8 @@
 /*  dvdisaster: Additional error correction for optical media.
- *  Copyright (C) 2004-2015 Carsten Gnoerlich.
- *
- *  Email: carsten@dvdisaster.org  -or-  cgnoerlich@fsfe.org
- *  Project homepage: http://www.dvdisaster.org
+ *  Copyright (C) 2004-2017 Carsten Gnoerlich.
+ *  Copyright (C) 2019-2021 The dvdisaster development team.
+ * 
+ *  Email: support@dvdisaster.org
  *
  *  This file is part of dvdisaster.
  *
@@ -19,6 +19,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with dvdisaster. If not, see <http://www.gnu.org/licenses/>.
  */
+
+/*** src type: no GUI code ***/
 
 #include "dvdisaster.h"
 
@@ -178,7 +180,7 @@ static void bp_get_string(unsigned char *dest, unsigned char *src, int begin, in
 static void bp_set_string(unsigned char *dest, char *src, int begin, int end)
 {  int length = end-begin+1;  
 
-   strncpy((char*)(dest+begin-1), src, length);
+   memcpy((char*)(dest+begin-1), src, length);
 }
 
 /*
@@ -794,10 +796,12 @@ void FreeIsoHeader(IsoHeader *ih)
 
 void AddFile(IsoHeader *ih, char *name, guint64 size)
 {  static int n;
-   char iso[20], joliet[strlen(name)+3];
+   char iso[22]; /* 15 would be enough but compiler figures out 22 */
+   char joliet[strlen(name)+3];
 
    n++;
    sprintf(iso,"RAN_%04d.DAT;1", n);
+  
    add_file_record(ih->proot, iso, size, 25,
 			106, 7, 16, 12, 28, 10, 8);
    sprintf(joliet,"%s;1", name);
@@ -824,7 +828,7 @@ void WriteIsoHeader(IsoHeader *ih, LargeFile *image)
    {  int n = LargeWrite(image, zero, 2048);
 
       if(n != 2048)
-	Stop(_("Failed writing to sector %lld in image: %s"), (gint64)i, strerror(errno));
+	Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)i, strerror(errno));
    }
 
    /* Complete the primary volume descriptor */
@@ -882,7 +886,7 @@ void WriteIsoHeader(IsoHeader *ih, LargeFile *image)
    /* Write the pvd */
 
    if(LargeWrite(image, pvd, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)16, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)16, strerror(errno));
 
 
    /* Create the supplementary volume descriptor */
@@ -939,7 +943,7 @@ void WriteIsoHeader(IsoHeader *ih, LargeFile *image)
    /* Write the svd */
 
    if(LargeWrite(image, svd, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)17, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)17, strerror(errno));
 
    /*** Create and write the volume descriptor set terminator */
 
@@ -952,26 +956,26 @@ void WriteIsoHeader(IsoHeader *ih, LargeFile *image)
    bp_set_byte(sector, 7, 1);             /* Volume descriptor version 1      */
 
    if(LargeWrite(image, sector, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)18, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)18, strerror(errno));
 
    /*** Write the primary and supplementary path tables and root directories */
 
    if(LargeWrite(image, ih->ppath->lpath, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)19, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)19, strerror(errno));
 
    if(LargeWrite(image, ih->ppath->mpath, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)20, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)20, strerror(errno));
    
    if(LargeWrite(image, ih->proot->dir, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)21, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)21, strerror(errno));
 
    if(LargeWrite(image, ih->spath->lpath, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)22, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)22, strerror(errno));
 
    if(LargeWrite(image, ih->spath->mpath, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)23, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)23, strerror(errno));
    
    if(LargeWrite(image, ih->sroot->dir, 2048) != 2048)
-     Stop(_("Failed writing to sector %lld in image: %s"), (gint64)24, strerror(errno));
+     Stop(_("Failed writing to sector %" PRId64 " in image: %s"), (gint64)24, strerror(errno));
 
 }
